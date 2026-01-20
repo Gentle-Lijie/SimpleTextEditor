@@ -109,7 +109,11 @@ SimpleTextEditor/
 |------|------|--------|
 | `NODE_ENV` | 运行环境 | development |
 | `PORT` | 后端端口 | 3001 |
-| `DATABASE_PATH` | SQLite 数据库路径 | ./data/sqlite.db |
+| `DB_HOST` | MySQL 主机地址 | localhost |
+| `DB_PORT` | MySQL 端口 | 3306 |
+| `DB_USER` | MySQL 用户名 | root |
+| `DB_PASSWORD` | MySQL 密码 | - |
+| `DB_NAME` | MySQL 数据库名 | simpletexteditor |
 | `GITHUB_TOKEN` | GitHub Personal Access Token | - |
 | `GITHUB_OWNER` | GitHub 用户名 | Gentle-Lijie |
 | `GITHUB_REPO` | GitHub 仓库名 | SimpleTextEditor |
@@ -146,7 +150,7 @@ SimpleTextEditor/
 - Node.js 20
 - Express
 - Socket.io
-- better-sqlite3
+- MySQL (mysql2)
 - y-websocket
 
 ### 部署

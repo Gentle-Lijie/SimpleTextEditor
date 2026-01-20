@@ -10,7 +10,7 @@ async function main() {
   try {
     // Initialize database
     console.log('Initializing database...')
-    initDatabase()
+    await initDatabase()
     console.log('Database initialized successfully')
 
     // Create HTTP server

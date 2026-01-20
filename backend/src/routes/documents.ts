@@ -4,9 +4,9 @@ import * as documentService from '../services/documentService.js'
 const router = Router()
 
 // Get all documents
-router.get('/', (_req: Request, res: Response) => {
+router.get('/', async (_req: Request, res: Response) => {
   try {
-    const documents = documentService.getAllDocuments()
+    const documents = await documentService.getAllDocuments()
     res.json({ success: true, data: documents })
   } catch (error) {
     console.error('Error fetching documents:', error)
@@ -15,9 +15,9 @@ router.get('/', (_req: Request, res: Response) => {
 })
 
 // Get single document by ID
-router.get('/:id', (req: Request, res: Response) => {
+router.get('/:id', async (req: Request, res: Response) => {
   try {
-    const document = documentService.getDocumentById(req.params.id)
+    const document = await documentService.getDocumentById(req.params.id)
     if (!document) {
       return res.status(404).json({ success: false, error: 'Document not found' })
     }
@@ -29,10 +29,10 @@ router.get('/:id', (req: Request, res: Response) => {
 })
 
 // Create new document
-router.post('/', (req: Request, res: Response) => {
+router.post('/', async (req: Request, res: Response) => {
   try {
     const { title, content } = req.body
-    const document = documentService.createDocument(title, content)
+    const document = await documentService.createDocument(title, content)
     res.status(201).json({ success: true, data: document })
   } catch (error) {
     console.error('Error creating document:', error)
@@ -41,10 +41,10 @@ router.post('/', (req: Request, res: Response) => {
 })
 
 // Update document
-router.put('/:id', (req: Request, res: Response) => {
+router.put('/:id', async (req: Request, res: Response) => {
   try {
     const { title, content } = req.body
-    const document = documentService.updateDocument(req.params.id, title, content)
+    const document = await documentService.updateDocument(req.params.id, title, content)
     if (!document) {
       return res.status(404).json({ success: false, error: 'Document not found' })
     }
@@ -56,9 +56,9 @@ router.put('/:id', (req: Request, res: Response) => {
 })
 
 // Delete document
-router.delete('/:id', (req: Request, res: Response) => {
+router.delete('/:id', async (req: Request, res: Response) => {
   try {
-    const deleted = documentService.deleteDocument(req.params.id)
+    const deleted = await documentService.deleteDocument(req.params.id)
     if (!deleted) {
       return res.status(404).json({ success: false, error: 'Document not found' })
     }

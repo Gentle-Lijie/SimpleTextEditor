@@ -2,9 +2,8 @@
 FROM node:20-alpine AS builder
 WORKDIR /app
 
-# Install pnpm and build dependencies for better-sqlite3
+# Install pnpm
 RUN corepack enable && corepack prepare pnpm@latest --activate
-RUN apk add --no-cache python3 make g++
 
 # Copy package files
 COPY package.json pnpm-lock.yaml ./
@@ -22,9 +21,8 @@ RUN pnpm build
 FROM node:20-alpine
 WORKDIR /app
 
-# Install pnpm and runtime dependencies for better-sqlite3
+# Install pnpm
 RUN corepack enable && corepack prepare pnpm@latest --activate
-RUN apk add --no-cache python3 make g++
 
 # Copy package files
 COPY package.json pnpm-lock.yaml ./
@@ -34,9 +32,6 @@ RUN pnpm install --prod --frozen-lockfile
 
 # Copy built files
 COPY --from=builder /app/dist ./dist
-
-# Create data directory
-RUN mkdir -p /app/data
 
 EXPOSE 3001
 
