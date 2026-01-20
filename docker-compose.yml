@@ -1,0 +1,36 @@
+version: '3.8'
+
+services:
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+    ports:
+      - "3000:80"
+    depends_on:
+      - backend
+    environment:
+      - VITE_API_URL=/api
+      - VITE_WS_URL=ws://localhost:3001
+    restart: unless-stopped
+
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    ports:
+      - "3001:3001"
+    volumes:
+      - ./data:/app/data
+    environment:
+      - NODE_ENV=production
+      - PORT=3001
+      - DATABASE_PATH=/app/data/sqlite.db
+      - GITHUB_TOKEN=${GITHUB_TOKEN}
+      - GITHUB_OWNER=${GITHUB_OWNER:-Gentle-Lijie}
+      - GITHUB_REPO=${GITHUB_REPO:-SimpleTextEditor}
+      - GITHUB_BRANCH=${GITHUB_BRANCH:-images}
+    restart: unless-stopped
+
+volumes:
+  data:
