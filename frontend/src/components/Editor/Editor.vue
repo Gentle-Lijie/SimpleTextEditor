@@ -7,6 +7,7 @@ import WYSIWYGEditor from './WYSIWYGEditor.vue'
 
 const editorStore = useEditorStore()
 const sourceEditorRef = ref<InstanceType<typeof SourceEditor> | null>(null)
+const wysiwygEditorRef = ref<InstanceType<typeof WYSIWYGEditor> | null>(null)
 
 const showSource = computed(() =>
   editorStore.mode === 'source' || editorStore.mode === 'split'
@@ -20,9 +21,10 @@ const showWYSIWYG = computed(() =>
   editorStore.mode === 'wysiwyg'
 )
 
-// Expose source editor ref for toolbar operations
+// Expose editor refs for toolbar operations
 defineExpose({
-  getSourceEditor: () => sourceEditorRef.value
+  getSourceEditor: () => sourceEditorRef.value,
+  getWYSIWYGEditor: () => wysiwygEditorRef.value
 })
 </script>
 
@@ -41,7 +43,7 @@ defineExpose({
 
     <!-- WYSIWYG mode -->
     <div v-else class="editor-pane wysiwyg-pane">
-      <WYSIWYGEditor />
+      <WYSIWYGEditor ref="wysiwygEditorRef" />
     </div>
   </div>
 </template>

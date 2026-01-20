@@ -1,58 +1,52 @@
-import { Server as HttpServer } from 'http'
-import { Server } from 'socket.io'
+import { Server as HttpServer, IncomingMessage } from 'http'
+import { WebSocketServer, WebSocket } from 'ws'
+// @ts-expect-error - y-websocket doesn't have proper type definitions
+import { setupWSConnection } from 'y-websocket/bin/utils'
 
-let io: Server | null = null
+let wss: WebSocketServer | null = null
 
-export function setupWebSocket(httpServer: HttpServer): Server {
-  io = new Server(httpServer, {
-    cors: {
-      origin: process.env.NODE_ENV === 'production'
-        ? false
-        : ['http://localhost:5173', 'http://localhost:3000'],
-      methods: ['GET', 'POST'],
-      credentials: true
-    },
-    transports: ['websocket', 'polling']
-  })
+export function setupWebSocket(httpServer: HttpServer): WebSocketServer {
+  // Create WebSocket server for y-websocket
+  wss = new WebSocketServer({ noServer: true })
 
-  io.on('connection', (socket) => {
-    console.log(`Client connected: ${socket.id}`)
+  // Handle WebSocket upgrade requests
+  httpServer.on('upgrade', (request: IncomingMessage, socket, head) => {
+    // Only handle y-websocket connections (paths like /doc-xxx)
+    const url = request.url || ''
 
-    // Join document room
-    socket.on('join-room', (data: { documentId: string; userId: string; userName: string; userColor: string }) => {
-      const { documentId, userId, userName, userColor } = data
-      socket.join(documentId)
-
-      // Notify others in the room
-      socket.to(documentId).emit('user-joined', {
-        id: userId,
-        name: userName,
-        color: userColor
+    if (url.startsWith('/')) {
+      wss!.handleUpgrade(request, socket, head, (ws: WebSocket) => {
+        wss!.emit('connection', ws, request)
       })
+    } else {
+      socket.destroy()
+    }
+  })
 
-      console.log(`User ${userName} joined room ${documentId}`)
+  // Handle WebSocket connections
+  wss.on('connection', (conn: WebSocket, request: IncomingMessage) => {
+    const docName = request.url?.slice(1) || 'default' // Remove leading slash
+    console.log(`WebSocket client connected to document: ${docName}`)
+
+    // Setup y-websocket connection
+    setupWSConnection(conn, request, {
+      docName: docName,
+      gc: true // Enable garbage collection for deleted items
     })
 
-    // Leave document room
-    socket.on('leave-room', (data: { documentId: string; userId: string }) => {
-      const { documentId, userId } = data
-      socket.leave(documentId)
-
-      // Notify others in the room
-      socket.to(documentId).emit('user-left', { id: userId })
-
-      console.log(`User ${userId} left room ${documentId}`)
+    conn.on('close', () => {
+      console.log(`WebSocket client disconnected from document: ${docName}`)
     })
 
-    // Handle disconnection
-    socket.on('disconnect', () => {
-      console.log(`Client disconnected: ${socket.id}`)
+    conn.on('error', (error: Error) => {
+      console.error('WebSocket error:', error)
     })
   })
 
-  return io
+  console.log('Y-WebSocket server initialized')
+  return wss
 }
 
-export function getIO(): Server | null {
-  return io
+export function getWSS(): WebSocketServer | null {
+  return wss
 }

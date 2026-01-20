@@ -269,6 +269,15 @@ function handleClick(event: MouseEvent) {
   }
 }
 
+// Expose sync method for external use (e.g., toolbar commands)
+function syncToMarkdown() {
+  handleInput()
+}
+
+defineExpose({
+  syncToMarkdown
+})
+
 onMounted(() => {
   if (editorElement.value) {
     editorElement.value.innerHTML = renderedContent.value

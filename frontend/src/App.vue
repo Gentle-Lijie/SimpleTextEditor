@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref, onMounted, onUnmounted, watch, computed } from 'vue'
+import { ref, onMounted, onUnmounted, watch, computed, provide } from 'vue'
 import { useEditorStore } from '@/stores/editor'
 import { useDocumentStore } from '@/stores/document'
 import Editor from '@/components/Editor/Editor.vue'
@@ -21,6 +21,9 @@ const editorStore = useEditorStore()
 const documentStore = useDocumentStore()
 const editorRef = ref<InstanceType<typeof Editor> | null>(null)
 
+// Auto-save delay from env (default 3000ms)
+const AUTO_SAVE_DELAY = parseInt(import.meta.env.VITE_AUTO_SAVE_DELAY || '3000')
+
 // Sidebar state
 const showSidebar = ref(true)
 const sidebarTab = ref<'files' | 'outline' | 'collab'>('files')
@@ -28,6 +31,9 @@ const sidebarTab = ref<'files' | 'outline' | 'collab'>('files')
 // Collaboration - initialize with a default room, will update when document changes
 const currentDocId = computed(() => documentStore.currentDocument?.id || 'default')
 const collaboration = useCollaboration(currentDocId.value)
+
+// Provide collaboration for child components
+provide('collaboration', collaboration)
 
 // Connect to collaboration on mount
 onMounted(() => {
@@ -52,8 +58,15 @@ function toggleSidebar() {
   showSidebar.value = !showSidebar.value
 }
 
-// Handle toolbar commands
+// Handle toolbar commands - works for both source and WYSIWYG mode
 function handleCommand(command: string, value?: string) {
+  // If in WYSIWYG mode, use execCommand
+  if (editorStore.mode === 'wysiwyg') {
+    handleWYSIWYGCommand(command, value)
+    return
+  }
+
+  // Source mode - manipulate markdown text
   const sourceEditor = editorRef.value?.getSourceEditor()
   if (!sourceEditor) return
 
@@ -117,6 +130,77 @@ function handleCommand(command: string, value?: string) {
   })
 }
 
+// Handle commands in WYSIWYG mode using execCommand
+function handleWYSIWYGCommand(command: string, value?: string) {
+  const wysiwygEditor = editorRef.value?.getWYSIWYGEditor()
+  if (!wysiwygEditor) return
+
+  // Map markdown commands to execCommand
+  const execCommandMap: Record<string, () => void> = {
+    bold: () => document.execCommand('bold', false),
+    italic: () => document.execCommand('italic', false),
+    underline: () => document.execCommand('underline', false),
+    strikethrough: () => document.execCommand('strikeThrough', false),
+    code: () => {
+      // Wrap selection in code tag
+      const selection = window.getSelection()
+      if (selection && selection.rangeCount > 0) {
+        const range = selection.getRangeAt(0)
+        const code = document.createElement('code')
+        code.appendChild(range.extractContents())
+        range.insertNode(code)
+      }
+    }
+  }
+
+  if (command in execCommandMap) {
+    execCommandMap[command]()
+    wysiwygEditor.syncToMarkdown()
+  } else if (command === 'heading') {
+    const level = parseInt(value || '0')
+    if (level === 0) {
+      document.execCommand('formatBlock', false, 'p')
+    } else {
+      document.execCommand('formatBlock', false, `h${level}`)
+    }
+    wysiwygEditor.syncToMarkdown()
+  } else if (command === 'list') {
+    if (value === 'ul') {
+      document.execCommand('insertUnorderedList', false)
+    } else if (value === 'ol') {
+      document.execCommand('insertOrderedList', false)
+    }
+    wysiwygEditor.syncToMarkdown()
+  } else if (command === 'textColor') {
+    document.execCommand('foreColor', false, value)
+    wysiwygEditor.syncToMarkdown()
+  } else if (command === 'bgColor') {
+    document.execCommand('hiliteColor', false, value)
+    wysiwygEditor.syncToMarkdown()
+  } else if (command === 'insert') {
+    // Handle insert commands
+    if (value === 'link') {
+      const url = prompt('请输入链接地址:', 'https://')
+      if (url) {
+        document.execCommand('createLink', false, url)
+        wysiwygEditor.syncToMarkdown()
+      }
+    } else if (value === 'image') {
+      const url = prompt('请输入图片地址:', 'https://')
+      if (url) {
+        document.execCommand('insertImage', false, url)
+        wysiwygEditor.syncToMarkdown()
+      }
+    } else if (value === 'hr') {
+      document.execCommand('insertHorizontalRule', false)
+      wysiwygEditor.syncToMarkdown()
+    } else if (value === 'quote') {
+      document.execCommand('formatBlock', false, 'blockquote')
+      wysiwygEditor.syncToMarkdown()
+    }
+  }
+}
+
 // Global keyboard shortcuts
 function handleGlobalKeydown(event: KeyboardEvent) {
   const ctrl = event.ctrlKey || event.metaKey
@@ -136,8 +220,8 @@ function handleGlobalKeydown(event: KeyboardEvent) {
     saveDocument()
   }
 
-  // Ctrl+B : Toggle sidebar
-  if (ctrl && event.key === 'b') {
+  // Ctrl+\ : Toggle sidebar (changed from Ctrl+B to avoid conflict with bold)
+  if (ctrl && event.key === '\\') {
     event.preventDefault()
     toggleSidebar()
   }
@@ -154,7 +238,7 @@ async function saveDocument() {
   }
 }
 
-// Auto-save
+// Auto-save with configurable delay
 let autoSaveTimer: ReturnType<typeof setTimeout> | null = null
 watch(() => editorStore.content, () => {
   if (autoSaveTimer) clearTimeout(autoSaveTimer)
@@ -162,7 +246,7 @@ watch(() => editorStore.content, () => {
     if (editorStore.isDirty && documentStore.currentDocument) {
       saveDocument()
     }
-  }, 3000)
+  }, AUTO_SAVE_DELAY)
 })
 
 onMounted(() => {
@@ -179,7 +263,7 @@ onUnmounted(() => {
   <div id="app-container">
     <header class="app-header">
       <div class="header-left">
-        <button class="sidebar-toggle" title="切换侧边栏 (Ctrl+B)" @click="toggleSidebar">
+        <button class="sidebar-toggle" title="切换侧边栏 (Ctrl+\)" @click="toggleSidebar">
           <svg viewBox="0 0 24 24" width="20" height="20">
             <path fill="currentColor" d="M3 18h18v-2H3v2zm0-5h18v-2H3v2zm0-7v2h18V6H3z"/>
           </svg>
@@ -200,6 +284,11 @@ onUnmounted(() => {
         </div>
       </div>
       <div class="header-right">
+        <button class="save-btn" title="保存 (Ctrl+S)" @click="saveDocument">
+          <svg viewBox="0 0 24 24" width="16" height="16">
+            <path fill="currentColor" d="M17 3H5c-1.11 0-2 .9-2 2v14c0 1.1.89 2 2 2h14c1.1 0 2-.9 2-2V7l-4-4zm-5 16c-1.66 0-3-1.34-3-3s1.34-3 3-3 3 1.34 3 3-1.34 3-3 3zm3-10H5V5h10v4z"/>
+          </svg>
+        </button>
         <span class="save-status" :class="{ saving: editorStore.isSaving, dirty: editorStore.isDirty }">
           {{ editorStore.isSaving ? '保存中...' : editorStore.isDirty ? '未保存' : '已保存' }}
         </span>
@@ -366,6 +455,17 @@ onUnmounted(() => {
   background: var(--bg-primary);
   color: var(--text-primary);
   box-shadow: var(--shadow-sm);
+}
+
+.save-btn {
+  padding: 6px;
+  color: var(--text-secondary);
+  border-radius: var(--radius-sm);
+}
+
+.save-btn:hover {
+  background: var(--bg-hover);
+  color: var(--text-primary);
 }
 
 .save-status {

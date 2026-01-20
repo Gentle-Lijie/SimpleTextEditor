@@ -16,10 +16,10 @@
 - **扩展语法**: 上标、下标、高亮标记、缩写
 
 ### 编辑功能
-- **多模式编辑**: 源码模式、预览模式、分屏模式
+- **多模式编辑**: 源码模式、预览模式、分屏模式、所见即所得模式
 - **丰富工具栏**: 格式化、插入、颜色选择
 - **快捷键支持**: 常用操作一键完成
-- **自动保存**: 定时保存，防止丢失
+- **自动保存**: 可配置延迟的自动保存，防止丢失
 
 ### 实时协作
 - **多人编辑**: 基于 Yjs CRDT 算法，自动合并冲突
@@ -120,6 +120,7 @@ SimpleTextEditor/
 | `GITHUB_BRANCH` | 图床分支 | images |
 | `VITE_API_URL` | 前端 API 地址 | http://localhost:3001 |
 | `VITE_WS_URL` | WebSocket 地址 | ws://localhost:3001 |
+| `VITE_AUTO_SAVE_DELAY` | 自动保存延迟(毫秒) | 3000 |
 
 ## 📝 快捷键
 
@@ -131,6 +132,7 @@ SimpleTextEditor/
 | `Ctrl+K` | 插入链接 |
 | `Ctrl+S` | 保存 |
 | `Ctrl+/` | 切换编辑模式 |
+| `Ctrl+\` | 切换侧边栏 |
 | `Tab` | 增加缩进 |
 | `Shift+Tab` | 减少缩进 |
 
@@ -149,7 +151,7 @@ SimpleTextEditor/
 ### 后端
 - Node.js 20
 - Express
-- Socket.io
+- WebSocket (ws)
 - MySQL (mysql2)
 - y-websocket
 
