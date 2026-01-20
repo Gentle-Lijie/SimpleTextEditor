@@ -1,10 +1,24 @@
 <script setup lang="ts">
-import { computed } from 'vue'
+import { computed, watch, nextTick, onMounted } from 'vue'
 import { useEditorStore } from '@/stores/editor'
 import { renderMarkdown } from '@/utils/markdown-it-config'
 import DOMPurify from 'dompurify'
+import mermaid from 'mermaid'
 
 const editorStore = useEditorStore()
+
+// Initialize Mermaid
+onMounted(() => {
+  mermaid.initialize({
+    startOnLoad: false,
+    theme: 'default',
+    securityLevel: 'loose',
+    flowchart: {
+      useMaxWidth: true,
+      htmlLabels: true
+    }
+  })
+})
 
 // Render markdown and sanitize HTML
 const renderedContent = computed(() => {
@@ -17,18 +31,42 @@ const renderedContent = computed(() => {
       'ul', 'ol', 'li',
       'blockquote', 'pre', 'code',
       'a', 'img',
-      'strong', 'em', 'del', 's', 'u',
+      'strong', 'em', 'del', 's', 'u', 'b', 'i',
       'table', 'thead', 'tbody', 'tr', 'th', 'td',
       'span', 'div', 'mark', 'sub', 'sup',
-      'input' // for checkboxes
+      'input', 'label', // for checkboxes
+      'section', 'sup', 'a', // for footnotes
+      'svg', 'path', 'g', 'rect', 'circle', 'line', 'polygon', 'polyline', 'text', 'tspan', 'defs', 'marker', 'foreignObject' // for mermaid
     ],
     ALLOWED_ATTR: [
-      'href', 'src', 'alt', 'title', 'target',
+      'href', 'src', 'alt', 'title', 'target', 'rel',
       'class', 'id', 'style',
-      'type', 'checked', 'disabled' // for checkboxes
-    ]
+      'type', 'checked', 'disabled', 'for', // for checkboxes
+      // SVG attributes for mermaid
+      'viewBox', 'xmlns', 'd', 'fill', 'stroke', 'stroke-width', 'transform',
+      'x', 'y', 'width', 'height', 'rx', 'ry', 'cx', 'cy', 'r',
+      'x1', 'y1', 'x2', 'y2', 'points', 'marker-end', 'marker-start',
+      'font-size', 'text-anchor', 'dominant-baseline', 'dy', 'dx',
+      'aria-roledescription', 'role', 'aria-labelledby'
+    ],
+    ADD_TAGS: ['math', 'semantics', 'mrow', 'mi', 'mo', 'mn', 'msup', 'msub', 'mfrac', 'mroot', 'msqrt', 'mtext', 'annotation']
   })
 })
+
+// Render Mermaid diagrams after content updates
+watch(renderedContent, async () => {
+  await nextTick()
+  try {
+    const mermaidElements = document.querySelectorAll('.mermaid:not([data-processed])')
+    if (mermaidElements.length > 0) {
+      await mermaid.run({
+        nodes: Array.from(mermaidElements) as HTMLElement[]
+      })
+    }
+  } catch (e) {
+    console.warn('Mermaid rendering error:', e)
+  }
+}, { flush: 'post' })
 </script>
 
 <template>
@@ -213,13 +251,76 @@ const renderedContent = computed(() => {
 }
 
 /* Task list */
-.markdown-body input[type="checkbox"] {
+.markdown-body .task-list-item {
+  list-style-type: none;
+  margin-left: -1.5em;
+}
+
+.markdown-body .task-list-item input[type="checkbox"] {
   margin-right: 8px;
   vertical-align: middle;
+}
+
+/* Footnotes */
+.markdown-body .footnotes {
+  margin-top: 32px;
+  padding-top: 16px;
+  border-top: 1px solid var(--border-color);
+  font-size: 0.9em;
+}
+
+.markdown-body .footnotes ol {
+  padding-left: 1.5em;
+}
+
+.markdown-body .footnote-ref {
+  font-size: 0.75em;
+  vertical-align: super;
+}
+
+.markdown-body .footnote-backref {
+  font-size: 0.75em;
+  margin-left: 4px;
+}
+
+/* Subscript and Superscript */
+.markdown-body sub {
+  font-size: 0.75em;
+  vertical-align: sub;
+}
+
+.markdown-body sup {
+  font-size: 0.75em;
+  vertical-align: super;
+}
+
+/* Mermaid diagrams */
+.markdown-body .mermaid {
+  margin: 16px 0;
+  text-align: center;
+  background: var(--bg-secondary);
+  padding: 16px;
+  border-radius: var(--radius-md);
+}
+
+.markdown-body .mermaid svg {
+  max-width: 100%;
+  height: auto;
 }
 
 /* highlight.js styles */
 .hljs {
   background: var(--bg-secondary) !important;
+}
+
+/* KaTeX styles */
+.markdown-body .katex-display {
+  margin: 1em 0;
+  overflow-x: auto;
+  overflow-y: hidden;
+}
+
+.markdown-body .katex {
+  font-size: 1.1em;
 }
 </style>
