@@ -8,12 +8,34 @@ const password = ref("");
 const error = ref("");
 const loading = ref(false);
 
-// Try auto-bypass when server未配置密码
+const LOCAL_KEY = "simpletexteditor-password";
+const SESSION_KEY = "simpletexteditor-password-session";
+let hasClearedStoredOnFailure = false;
+
+function getStoredPassword(): string {
+  return sessionStorage.getItem(SESSION_KEY) || localStorage.getItem(LOCAL_KEY) || "";
+}
+
+function savePassword(pwd: string) {
+  sessionStorage.setItem(SESSION_KEY, pwd);
+  localStorage.setItem(LOCAL_KEY, pwd);
+}
+
+function clearStoredPassword() {
+  sessionStorage.removeItem(SESSION_KEY);
+  localStorage.removeItem(LOCAL_KEY);
+}
+
+// Try auto-bypass when server未配置密码，或存在已存储密码
 onMounted(async () => {
-  await verify(true);
+  const stored = getStoredPassword();
+  if (stored) {
+    password.value = stored;
+  }
+  await verify(true, Boolean(stored));
 });
 
-async function verify(isAuto = false) {
+async function verify(isAuto = false, fromStored = false) {
   error.value = "";
 
   if (!isAuto && !password.value.trim()) {
@@ -32,9 +54,17 @@ async function verify(isAuto = false) {
     const result = await response.json();
 
     if (!response.ok || !result.success) {
+      if (fromStored && !hasClearedStoredOnFailure) {
+        clearStoredPassword();
+        hasClearedStoredOnFailure = true;
+      }
       if (isAuto) return;
       error.value = result.error || "密码错误";
       return;
+    }
+
+    if (password.value.trim()) {
+      savePassword(password.value.trim());
     }
 
     emit("authenticated");
@@ -50,7 +80,7 @@ async function verify(isAuto = false) {
 
 async function handleSubmit(event: Event) {
   event.preventDefault();
-  await verify(false);
+  await verify(false, false);
 }
 </script>
 

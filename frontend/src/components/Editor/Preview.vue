@@ -186,7 +186,7 @@ watch(renderedContent, async () => {
 }
 
 .markdown-body code {
-  font-family: 'SF Mono', 'Monaco', 'Inconsolata', 'Fira Code', monospace;
+  font-family: var(--font-mono);
   font-size: 85%;
 }
 
