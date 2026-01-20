@@ -9,6 +9,13 @@ services:
       args:
         - VITE_API_URL=/api
         - VITE_WS_URL=${VITE_WS_URL:-wss://localhost}
+    cpus: 1.0
+    mem_limit: 1024m
+    deploy:
+      resources:
+        limits:
+          cpus: '1.0'
+          memory: 1024m
     ports:
       - "3000:80"
     depends_on:
@@ -20,6 +27,13 @@ services:
     build:
       context: ./backend
       dockerfile: Dockerfile
+    cpus: 1.0
+    mem_limit: 1024m
+    deploy:
+      resources:
+        limits:
+          cpus: '1.0'
+          memory: 1024m
     ports:
       - "3001:3001"
     environment:

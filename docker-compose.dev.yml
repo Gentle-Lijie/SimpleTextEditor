@@ -8,6 +8,13 @@ services:
     build:
       context: ./frontend
       dockerfile: Dockerfile.dev
+    cpus: 1.0
+    mem_limit: 1024m
+    deploy:
+      resources:
+        limits:
+          cpus: '1.0'
+          memory: 1024m
     ports:
       - "5173:5173"
     volumes:
@@ -23,6 +30,13 @@ services:
     build:
       context: ./backend
       dockerfile: Dockerfile.dev
+    cpus: 1.0
+    mem_limit: 1024m
+    deploy:
+      resources:
+        limits:
+          cpus: '1.0'
+          memory: 1024m
     ports:
       - "3001:3001"
     volumes:
