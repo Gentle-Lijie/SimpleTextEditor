@@ -36,6 +36,9 @@ RUN pnpm install --prod --frozen-lockfile
 # Copy built files
 COPY --from=builder /app/dist ./dist
 
+# Copy SQL schema file
+COPY src/database/schema.sql ./dist/database/
+
 EXPOSE 3001
 
 CMD ["node", "dist/index.js"]
