@@ -41,8 +41,8 @@ export interface CollaborationUser {
   id: string
   name: string
   color: string
-  cursor?: CursorPosition
-  selection?: Selection
+  cursor?: CursorPosition & { index?: number }
+  selection?: { start: number; end: number }
 }
 
 export interface CollaborationState {

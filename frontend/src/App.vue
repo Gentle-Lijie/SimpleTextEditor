@@ -231,10 +231,9 @@ function handleGlobalKeydown(event: KeyboardEvent) {
 async function saveDocument() {
   const doc = documentStore.currentDocument
   if (doc) {
-    editorStore.setSaving(true)
+    editorStore.startSaving()
     await documentStore.updateDocument(doc.id, { content: editorStore.content })
     editorStore.markSaved()
-    editorStore.setSaving(false)
   }
 }
 

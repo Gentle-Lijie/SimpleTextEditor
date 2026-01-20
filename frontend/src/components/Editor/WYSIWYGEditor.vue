@@ -1,16 +1,19 @@
 <script setup lang="ts">
-import { ref, watch, onMounted, computed, nextTick } from 'vue'
+import { ref, watch, onMounted, computed, nextTick, inject } from 'vue'
 import { useEditorStore } from '@/stores/editor'
 import { renderMarkdown } from '@/utils/markdown-it-config'
 import DOMPurify from 'dompurify'
 import TurndownService from 'turndown'
 // @ts-expect-error - no type definitions
-import { gfm, strikethrough, tables, taskListItems } from 'turndown-plugin-gfm'
+import { gfm } from 'turndown-plugin-gfm'
 
 const editorStore = useEditorStore()
 const editorElement = ref<HTMLDivElement | null>(null)
 const isComposing = ref(false)
 const lastSavedSelection = ref<{ start: number; end: number } | null>(null)
+
+// Get collaboration from parent
+const collaboration = inject<any>('collaboration')
 
 // Configure Turndown for HTML to Markdown conversion
 const turndownService = new TurndownService({
@@ -54,15 +57,31 @@ turndownService.addRule('superscript', {
   replacement: (content) => `^${content}^`
 })
 
-// Convert colored text back to HTML spans (preserve them)
+// Convert colored text to HTML with data attributes for markdown conversion
 turndownService.addRule('coloredText', {
   filter: (node) => {
-    return node.nodeName === 'SPAN' &&
-           (node.getAttribute('style')?.includes('color:') ||
-            node.getAttribute('style')?.includes('background-color:'))
+    if (node.nodeName !== 'SPAN') return false
+    const style = node.getAttribute('style') || ''
+    return style.includes('color:') || style.includes('background-color:')
   },
-  replacement: (_content, node) => {
-    return (node as HTMLElement).outerHTML
+  replacement: (content, node) => {
+    const el = node as HTMLElement
+    const style = el.getAttribute('style') || ''
+    // Preserve HTML for colored text
+    return `<span style="${style}">${content}</span>`
+  }
+})
+
+// Preserve font color
+turndownService.addRule('fontColor', {
+  filter: 'font',
+  replacement: (content, node) => {
+    const el = node as HTMLElement
+    const color = el.getAttribute('color')
+    if (color) {
+      return `<span style="color: ${color}">${content}</span>`
+    }
+    return content
   }
 })
 
@@ -71,16 +90,17 @@ const renderedContent = computed(() => {
   const html = renderMarkdown(editorStore.content)
   return DOMPurify.sanitize(html, {
     ADD_TAGS: ['input'],
-    ADD_ATTR: ['checked', 'type', 'disabled']
+    ADD_ATTR: ['checked', 'type', 'disabled', 'style']
   })
 })
 
 // Flag to prevent update loops
 let isUpdatingFromSource = false
+let isLocalInput = false
 
 // Watch for changes from source and update WYSIWYG
 watch(() => editorStore.content, () => {
-  if (!isUpdatingFromSource && editorElement.value) {
+  if (!isUpdatingFromSource && !isLocalInput && editorElement.value) {
     saveSelection()
     nextTick(() => {
       if (editorElement.value) {
@@ -167,11 +187,94 @@ function restoreSelection() {
   }
 }
 
+// Markdown patterns for instant rendering
+const markdownPatterns = [
+  // Bold: **text** or __text__
+  { pattern: /\*\*([^*]+)\*\*$/, replacement: '<strong>$1</strong>' },
+  { pattern: /__([^_]+)__$/, replacement: '<strong>$1</strong>' },
+  // Italic: *text* or _text_
+  { pattern: /(?<!\*)\*([^*]+)\*(?!\*)$/, replacement: '<em>$1</em>' },
+  { pattern: /(?<!_)_([^_]+)_(?!_)$/, replacement: '<em>$1</em>' },
+  // Strikethrough: ~~text~~
+  { pattern: /~~([^~]+)~~$/, replacement: '<del>$1</del>' },
+  // Highlight: ==text==
+  { pattern: /==([^=]+)==$/, replacement: '<mark>$1</mark>' },
+  // Inline code: `code`
+  { pattern: /`([^`]+)`$/, replacement: '<code>$1</code>' },
+  // Subscript: ~text~
+  { pattern: /(?<!~)~([^~]+)~(?!~)$/, replacement: '<sub>$1</sub>' },
+  // Superscript: ^text^
+  { pattern: /\^([^^]+)\^$/, replacement: '<sup>$1</sup>' },
+]
+
+// Check if current text node ends with a markdown pattern and render it
+function checkAndRenderMarkdown() {
+  const selection = window.getSelection()
+  if (!selection || selection.rangeCount === 0) return false
+
+  const range = selection.getRangeAt(0)
+  const textNode = range.startContainer
+
+  if (textNode.nodeType !== Node.TEXT_NODE) return false
+
+  const text = textNode.textContent || ''
+  const cursorPos = range.startOffset
+  const textBeforeCursor = text.substring(0, cursorPos)
+
+  for (const { pattern, replacement } of markdownPatterns) {
+    const match = textBeforeCursor.match(pattern)
+    if (match) {
+      // Found a pattern, replace it
+      const fullMatch = match[0]
+      const startIdx = cursorPos - fullMatch.length
+
+      // Create the new HTML element
+      const temp = document.createElement('div')
+      temp.innerHTML = fullMatch.replace(pattern, replacement)
+      const newElement = temp.firstChild
+
+      if (newElement) {
+        // Split the text node and insert the new element
+        const beforeText = text.substring(0, startIdx)
+        const afterText = text.substring(cursorPos)
+
+        const parent = textNode.parentNode
+        if (!parent) return false
+
+        // Create text nodes for before and after
+        const beforeNode = document.createTextNode(beforeText)
+        const afterNode = document.createTextNode(afterText)
+
+        // Replace
+        parent.insertBefore(beforeNode, textNode)
+        parent.insertBefore(newElement, textNode)
+        parent.insertBefore(afterNode, textNode)
+        parent.removeChild(textNode)
+
+        // Move cursor after the new element
+        const newRange = document.createRange()
+        newRange.setStartAfter(newElement)
+        newRange.collapse(true)
+        selection.removeAllRanges()
+        selection.addRange(newRange)
+
+        return true
+      }
+    }
+  }
+
+  return false
+}
+
 // Handle input in WYSIWYG editor
 function handleInput() {
   if (isComposing.value || !editorElement.value) return
 
+  isLocalInput = true
   isUpdatingFromSource = true
+
+  // Try to render markdown patterns
+  const rendered = checkAndRenderMarkdown()
 
   // Convert HTML back to Markdown
   const html = editorElement.value.innerHTML
@@ -181,6 +284,7 @@ function handleInput() {
 
   nextTick(() => {
     isUpdatingFromSource = false
+    isLocalInput = false
   })
 }
 
@@ -192,6 +296,12 @@ function handleCompositionStart() {
 function handleCompositionEnd() {
   isComposing.value = false
   handleInput()
+}
+
+// Clear formatting for new line
+function clearFormattingForNewLine() {
+  // Remove any inline styles from the current selection
+  document.execCommand('removeFormat', false)
 }
 
 // Handle keyboard shortcuts
@@ -245,10 +355,13 @@ function handleKeydown(event: KeyboardEvent) {
     }
   }
 
-  // Handle Enter for new paragraphs
+  // Handle Enter for new paragraphs - clear formatting
   if (event.key === 'Enter' && !event.shiftKey) {
-    // Let default behavior handle it, then convert
-    setTimeout(() => handleInput(), 0)
+    // Let browser handle the enter, then clear formatting on new line
+    setTimeout(() => {
+      clearFormattingForNewLine()
+      handleInput()
+    }, 0)
   }
 }
 
@@ -269,6 +382,37 @@ function handleClick(event: MouseEvent) {
   }
 }
 
+// Handle selection change for collaboration
+function handleSelectionChange() {
+  if (!collaboration) return
+
+  const selection = window.getSelection()
+  if (!selection || selection.rangeCount === 0 || !editorElement.value) return
+
+  const range = selection.getRangeAt(0)
+  if (!editorElement.value.contains(range.commonAncestorContainer)) return
+
+  // Get cursor position
+  const preCaretRange = range.cloneRange()
+  preCaretRange.selectNodeContents(editorElement.value)
+  preCaretRange.setEnd(range.startContainer, range.startOffset)
+  const start = preCaretRange.toString().length
+
+  preCaretRange.setEnd(range.endContainer, range.endOffset)
+  const end = preCaretRange.toString().length
+
+  // Calculate line and column
+  const textBeforeCursor = editorElement.value.innerText.substring(0, start)
+  const lines = textBeforeCursor.split('\n')
+  const line = lines.length
+  const column = lines[lines.length - 1].length + 1
+
+  collaboration.updateCursor(line, column, start)
+  if (start !== end) {
+    collaboration.updateSelection(start, end)
+  }
+}
+
 // Expose sync method for external use (e.g., toolbar commands)
 function syncToMarkdown() {
   handleInput()
@@ -283,6 +427,9 @@ onMounted(() => {
     editorElement.value.innerHTML = renderedContent.value
     initializeMermaid()
   }
+
+  // Listen for selection changes
+  document.addEventListener('selectionchange', handleSelectionChange)
 })
 </script>
 
@@ -434,5 +581,30 @@ onMounted(() => {
 .wysiwyg-editor :deep(mark) {
   background: #fff59d;
   padding: 0.1em 0.2em;
+}
+
+/* Strong and em */
+.wysiwyg-editor :deep(strong) {
+  font-weight: 700;
+}
+
+.wysiwyg-editor :deep(em) {
+  font-style: italic;
+}
+
+/* Strikethrough */
+.wysiwyg-editor :deep(del) {
+  text-decoration: line-through;
+}
+
+/* Subscript and superscript */
+.wysiwyg-editor :deep(sub) {
+  vertical-align: sub;
+  font-size: smaller;
+}
+
+.wysiwyg-editor :deep(sup) {
+  vertical-align: super;
+  font-size: smaller;
 }
 </style>

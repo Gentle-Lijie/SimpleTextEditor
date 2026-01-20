@@ -1,7 +1,8 @@
-import { ref, onUnmounted } from 'vue'
+import { ref, onUnmounted, watch } from 'vue'
 import * as Y from 'yjs'
 import { WebsocketProvider } from 'y-websocket'
 import type { CollaborationUser } from '@/types'
+import { useEditorStore } from '@/stores/editor'
 
 const WS_URL = import.meta.env.VITE_WS_URL || 'ws://localhost:3001'
 
@@ -26,6 +27,8 @@ function getRandomName(): string {
 }
 
 export function useCollaboration(documentId: string) {
+  const editorStore = useEditorStore()
+
   const ydoc = new Y.Doc()
   const ytext = ydoc.getText('content')
 
@@ -38,6 +41,41 @@ export function useCollaboration(documentId: string) {
   })
 
   let provider: WebsocketProvider | null = null
+  let isUpdatingFromYjs = false
+  let isUpdatingFromStore = false
+
+  // Sync Y.Text changes to store
+  function onYTextChange() {
+    if (isUpdatingFromStore) return
+    isUpdatingFromYjs = true
+    const newContent = ytext.toString()
+    if (editorStore.content !== newContent) {
+      editorStore.setContent(newContent)
+    }
+    isUpdatingFromYjs = false
+  }
+
+  // Sync store changes to Y.Text
+  function syncStoreToYText() {
+    if (isUpdatingFromYjs) return
+    isUpdatingFromStore = true
+
+    const storeContent = editorStore.content
+    const ytextContent = ytext.toString()
+
+    if (storeContent !== ytextContent) {
+      // Calculate diff and apply minimal changes
+      ydoc.transact(() => {
+        ytext.delete(0, ytextContent.length)
+        ytext.insert(0, storeContent)
+      })
+    }
+
+    isUpdatingFromStore = false
+  }
+
+  // Watch store changes and sync to Y.Text
+  const stopStoreWatch = watch(() => editorStore.content, syncStoreToYText)
 
   // Connect to collaboration server
   function connect() {
@@ -53,7 +91,23 @@ export function useCollaboration(documentId: string) {
     // Handle connection status
     provider.on('status', (event: { status: string }) => {
       connected.value = event.status === 'connected'
+
+      // When connected, sync initial content
+      if (event.status === 'connected') {
+        // If Y.Text has content, use it; otherwise init from store
+        const ytextContent = ytext.toString()
+        if (ytextContent) {
+          isUpdatingFromYjs = true
+          editorStore.setContent(ytextContent)
+          isUpdatingFromYjs = false
+        } else if (editorStore.content) {
+          syncStoreToYText()
+        }
+      }
     })
+
+    // Listen to Y.Text changes
+    ytext.observe(onYTextChange)
 
     // Set user awareness
     provider.awareness.setLocalStateField('user', {
@@ -73,7 +127,8 @@ export function useCollaboration(documentId: string) {
             id: clientId.toString(),
             name: state.user.name,
             color: state.user.color,
-            cursor: state.cursor
+            cursor: state.cursor,
+            selection: state.selection
           })
         }
       })
@@ -85,6 +140,7 @@ export function useCollaboration(documentId: string) {
   // Disconnect from collaboration server
   function disconnect() {
     if (provider) {
+      ytext.unobserve(onYTextChange)
       provider.disconnect()
       provider.destroy()
       provider = null
@@ -94,9 +150,16 @@ export function useCollaboration(documentId: string) {
   }
 
   // Update cursor position in awareness
-  function updateCursor(line: number, column: number) {
+  function updateCursor(line: number, column: number, index?: number) {
     if (provider) {
-      provider.awareness.setLocalStateField('cursor', { line, column })
+      provider.awareness.setLocalStateField('cursor', { line, column, index })
+    }
+  }
+
+  // Update selection in awareness
+  function updateSelection(start: number, end: number) {
+    if (provider) {
+      provider.awareness.setLocalStateField('selection', { start, end })
     }
   }
 
@@ -110,6 +173,11 @@ export function useCollaboration(documentId: string) {
     return ydoc
   }
 
+  // Get provider for awareness
+  function getProvider(): WebsocketProvider | null {
+    return provider
+  }
+
   // Set user name
   function setUserName(name: string) {
     currentUser.value.name = name
@@ -120,8 +188,24 @@ export function useCollaboration(documentId: string) {
     }
   }
 
+  // Apply local change to Y.Text (for collaborative editing)
+  function applyLocalChange(index: number, deleteCount: number, insertText: string) {
+    if (isUpdatingFromYjs) return
+    isUpdatingFromStore = true
+    ydoc.transact(() => {
+      if (deleteCount > 0) {
+        ytext.delete(index, deleteCount)
+      }
+      if (insertText) {
+        ytext.insert(index, insertText)
+      }
+    })
+    isUpdatingFromStore = false
+  }
+
   // Cleanup on unmount
   onUnmounted(() => {
+    stopStoreWatch()
     disconnect()
     ydoc.destroy()
   })
@@ -133,8 +217,11 @@ export function useCollaboration(documentId: string) {
     connect,
     disconnect,
     updateCursor,
+    updateSelection,
     getYText,
     getYDoc,
-    setUserName
+    getProvider,
+    setUserName,
+    applyLocalChange
   }
 }

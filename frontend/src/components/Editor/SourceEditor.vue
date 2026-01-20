@@ -1,11 +1,22 @@
 <script setup lang="ts">
-import { ref, watch, onMounted, nextTick } from 'vue'
+import { ref, watch, onMounted, nextTick, inject, computed } from 'vue'
 import { useEditorStore } from '@/stores/editor'
+import type { CollaborationUser } from '@/types'
 
 const editorStore = useEditorStore()
 
+// Get collaboration from parent
+const collaboration = inject<any>('collaboration')
+
 const textareaRef = ref<HTMLTextAreaElement | null>(null)
 const lineNumbers = ref<number[]>([1])
+const editorContainerRef = ref<HTMLDivElement | null>(null)
+
+// Collaboration users with cursor positions
+const collaboratorCursors = computed(() => {
+  if (!collaboration) return []
+  return collaboration.users.value.filter((u: CollaborationUser) => u.cursor)
+})
 
 // Update line numbers when content changes
 function updateLineNumbers() {
@@ -31,6 +42,14 @@ function handleCursorChange() {
   const column = lines[lines.length - 1].length + 1
 
   editorStore.setCursorPosition(line, column)
+
+  // Update collaboration cursor
+  if (collaboration) {
+    collaboration.updateCursor(line, column, textarea.selectionStart)
+    if (textarea.selectionStart !== textarea.selectionEnd) {
+      collaboration.updateSelection(textarea.selectionStart, textarea.selectionEnd)
+    }
+  }
 }
 
 // Handle keyboard shortcuts
@@ -115,6 +134,28 @@ function handleScroll(event: Event) {
   }
 }
 
+// Calculate cursor position in pixels for collaborators
+function getCursorStyle(user: CollaborationUser) {
+  if (!user.cursor || !textareaRef.value) return {}
+
+  const textarea = textareaRef.value
+  const { line, column } = user.cursor
+
+  // Calculate position based on line and column
+  const lineHeight = 22.4 // Should match CSS
+  const charWidth = 8.4 // Approximate for monospace
+
+  const top = (line - 1) * lineHeight + 12 // 12px padding
+  const left = 50 + 16 + (column - 1) * charWidth // 50px line numbers + 16px padding
+
+  return {
+    top: `${top}px`,
+    left: `${left}px`,
+    backgroundColor: user.color,
+    '--user-color': user.color
+  }
+}
+
 // Initialize
 onMounted(() => {
   updateLineNumbers()
@@ -135,7 +176,7 @@ defineExpose({
 </script>
 
 <template>
-  <div class="source-editor">
+  <div class="source-editor" ref="editorContainerRef">
     <div class="line-numbers">
       <div
         v-for="num in lineNumbers"
@@ -146,18 +187,33 @@ defineExpose({
         {{ num }}
       </div>
     </div>
-    <textarea
-      ref="textareaRef"
-      class="editor-textarea"
-      :value="editorStore.content"
-      @input="handleInput"
-      @keydown="handleKeyDown"
-      @click="handleCursorChange"
-      @keyup="handleCursorChange"
-      @scroll="handleScroll"
-      spellcheck="false"
-      placeholder="Start typing your markdown here..."
-    ></textarea>
+    <div class="editor-wrapper">
+      <textarea
+        ref="textareaRef"
+        class="editor-textarea"
+        :value="editorStore.content"
+        @input="handleInput"
+        @keydown="handleKeyDown"
+        @click="handleCursorChange"
+        @keyup="handleCursorChange"
+        @scroll="handleScroll"
+        spellcheck="false"
+        placeholder="Start typing your markdown here..."
+      ></textarea>
+
+      <!-- Collaborator cursors -->
+      <div
+        v-for="user in collaboratorCursors"
+        :key="user.id"
+        class="collaborator-cursor"
+        :style="getCursorStyle(user)"
+      >
+        <div class="cursor-line" :style="{ backgroundColor: user.color }"></div>
+        <div class="cursor-label" :style="{ backgroundColor: user.color }">
+          {{ user.name }}
+        </div>
+      </div>
+    </div>
   </div>
 </template>
 
@@ -193,8 +249,15 @@ defineExpose({
   background: var(--bg-hover);
 }
 
-.editor-textarea {
+.editor-wrapper {
   flex: 1;
+  position: relative;
+  overflow: hidden;
+}
+
+.editor-textarea {
+  width: 100%;
+  height: 100%;
   padding: 12px 16px;
   border: none;
   outline: none;
@@ -215,5 +278,35 @@ defineExpose({
 
 .editor-textarea::selection {
   background: var(--editor-selection);
+}
+
+/* Collaborator cursor styles */
+.collaborator-cursor {
+  position: absolute;
+  pointer-events: none;
+  z-index: 10;
+}
+
+.cursor-line {
+  width: 2px;
+  height: 22.4px;
+  animation: cursor-blink 1s ease-in-out infinite;
+}
+
+.cursor-label {
+  position: absolute;
+  top: -18px;
+  left: 0;
+  padding: 2px 6px;
+  font-size: 11px;
+  color: white;
+  border-radius: 3px;
+  white-space: nowrap;
+  font-family: var(--font-sans);
+}
+
+@keyframes cursor-blink {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.5; }
 }
 </style>
