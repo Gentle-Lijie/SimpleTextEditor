@@ -2,6 +2,7 @@ import express from 'express'
 import cors from 'cors'
 import documentsRouter from './routes/documents.js'
 import uploadRouter from './routes/upload.js'
+import exportRouter from './routes/export.js'
 
 const app = express()
 
@@ -24,6 +25,7 @@ app.get('/api/health', (_req, res) => {
 // API routes
 app.use('/api/documents', documentsRouter)
 app.use('/api/upload', uploadRouter)
+app.use('/api/convert', exportRouter)
 
 // Error handling middleware
 app.use((err: Error, _req: express.Request, res: express.Response, _next: express.NextFunction) => {

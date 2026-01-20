@@ -21,6 +21,15 @@ RUN pnpm build
 FROM node:20-alpine
 WORKDIR /app
 
+# Install pandoc and dependencies for PDF export
+RUN apk add --no-cache \
+    pandoc \
+    texlive \
+    texlive-xetex \
+    texmf-dist-langchinese \
+    font-noto-cjk \
+    && rm -rf /var/cache/apk/*
+
 # Install pnpm
 RUN corepack enable && corepack prepare pnpm@latest --activate
 

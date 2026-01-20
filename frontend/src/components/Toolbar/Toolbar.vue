@@ -5,6 +5,7 @@ import HeadingMenu from './HeadingMenu.vue'
 import ListMenu from './ListMenu.vue'
 import InsertMenu from './InsertMenu.vue'
 import ColorPicker from './ColorPicker.vue'
+import ExportMenu from './ExportMenu.vue'
 
 // Provide a way for child components to execute editor commands
 const emit = defineEmits<{
@@ -80,6 +81,12 @@ function handleClickOutside(event: MouseEvent) {
 
     <div class="toolbar-group">
       <ColorPicker @command="executeCommand" />
+    </div>
+
+    <div class="toolbar-divider"></div>
+
+    <div class="toolbar-group">
+      <ExportMenu @close="closeDropdowns" />
     </div>
   </div>
 </template>
