@@ -1,0 +1,12 @@
+/* Light Theme Variables */
+/* Note: Main variables are defined in main.css :root */
+/* This file can be used for additional light theme specific styles */
+
+[data-theme="light"] {
+  color-scheme: light;
+}
+
+/* Mermaid light theme adjustments */
+[data-theme="light"] .mermaid {
+  --mermaid-font-family: inherit;
+}
