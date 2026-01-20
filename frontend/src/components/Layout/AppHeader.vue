@@ -2,7 +2,7 @@
 import type { PropType } from "vue";
 import type { EditorMode } from "@/types";
 
-const props = defineProps({
+defineProps({
   editorMode: {
     type: String as PropType<EditorMode>,
     required: true,

@@ -5,24 +5,24 @@ import Outline from "@/components/Sidebar/Outline.vue";
 import UserList from "@/components/Collaboration/UserList.vue";
 import type { CollaborationUser } from "@/types";
 
-const props = defineProps({
+defineProps({
   activeTab: {
-    type: String as PropType<"files" | "outline" | "collab">,
-    default: "files",
+    type: String as PropType<'files' | 'outline' | 'collab'>,
+    default: 'files'
   },
   users: {
     type: Array as PropType<CollaborationUser[]>,
-    default: () => [],
+    default: () => []
   },
   currentUser: {
-    type: Object as PropType<CollaborationUser | null>,
-    default: null,
+    type: Object as PropType<CollaborationUser>,
+    required: true
   },
   connected: {
     type: Boolean,
-    default: false,
-  },
-});
+    default: false
+  }
+})
 
 const emit = defineEmits<{
   (e: "change-tab", tab: "files" | "outline" | "collab"): void;
@@ -79,7 +79,7 @@ const emit = defineEmits<{
       <UserList
         v-else-if="activeTab === 'collab'"
         :users="users"
-        :current-user="currentUser || undefined"
+        :current-user="currentUser"
         :connected="connected"
         @update:user-name="(name: string) => emit('update:user-name', name)"
       />

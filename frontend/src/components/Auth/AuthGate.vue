@@ -47,6 +47,11 @@ async function verify(isAuto = false) {
     loading.value = false;
   }
 }
+
+async function handleSubmit(event: Event) {
+  event.preventDefault();
+  await verify(false);
+}
 </script>
 
 <template>
@@ -56,7 +61,7 @@ async function verify(isAuto = false) {
         <div class="logo">SimpleTextEditor</div>
         <p class="auth-subtitle">请输入访问密码以进入</p>
       </div>
-      <form class="auth-form" @submit.prevent="verify">
+      <form class="auth-form" @submit="handleSubmit">
         <label class="auth-label" for="access-password">访问密码</label>
         <input
           id="access-password"

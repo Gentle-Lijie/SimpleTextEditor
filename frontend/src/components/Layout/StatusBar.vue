@@ -1,30 +1,30 @@
 <script setup lang="ts">
-const props = defineProps({
+defineProps({
   title: {
     type: String,
-    default: "未选择文档",
+    default: '未选择文档'
   },
   line: {
     type: Number,
-    default: 1,
+    default: 1
   },
   column: {
     type: Number,
-    default: 1,
+    default: 1
   },
   charCount: {
     type: Number,
-    default: 0,
+    default: 0
   },
   wordCount: {
     type: Number,
-    default: 0,
+    default: 0
   },
   readingTime: {
-    type: Number,
-    default: 0,
-  },
-});
+    type: [String, Number],
+    default: 0
+  }
+})
 </script>
 
 <template>
