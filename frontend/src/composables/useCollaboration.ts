@@ -1,4 +1,4 @@
-import { ref, onUnmounted, watch } from 'vue'
+import { ref, onUnmounted, watch, type Ref } from 'vue'
 import * as Y from 'yjs'
 import { WebsocketProvider } from 'y-websocket'
 import type { CollaborationUser } from '@/types'
@@ -26,23 +26,30 @@ function getRandomName(): string {
   return adj + noun
 }
 
-export function useCollaboration(documentId: string) {
+export function useCollaboration(documentIdRef: Ref<string> | string) {
   const editorStore = useEditorStore()
 
-  const ydoc = new Y.Doc()
-  const ytext = ydoc.getText('content')
+  // Track current document ID
+  const currentDocId = ref(typeof documentIdRef === 'string' ? documentIdRef : documentIdRef.value)
+
+  let ydoc = new Y.Doc()
+  let ytext = ydoc.getText('content')
 
   const connected = ref(false)
   const users = ref<CollaborationUser[]>([])
+  // Keep user info consistent across document switches
+  const userName = getRandomName()
+  const userColor = getRandomColor()
   const currentUser = ref<CollaborationUser>({
     id: ydoc.clientID.toString(),
-    name: getRandomName(),
-    color: getRandomColor()
+    name: userName,
+    color: userColor
   })
 
   let provider: WebsocketProvider | null = null
   let isUpdatingFromYjs = false
   let isUpdatingFromStore = false
+  let stopStoreWatch: (() => void) | null = null
 
   // Sync Y.Text changes to store
   function onYTextChange() {
@@ -74,16 +81,40 @@ export function useCollaboration(documentId: string) {
     isUpdatingFromStore = false
   }
 
-  // Watch store changes and sync to Y.Text
-  const stopStoreWatch = watch(() => editorStore.content, syncStoreToYText)
+  // Setup store watch
+  function setupStoreWatch() {
+    if (stopStoreWatch) {
+      stopStoreWatch()
+    }
+    stopStoreWatch = watch(() => editorStore.content, syncStoreToYText)
+  }
 
-  // Connect to collaboration server
-  function connect() {
-    if (provider) return
+  // Connect to collaboration server for a specific document
+  function connect(docId?: string) {
+    // If docId provided and different from current, switch rooms
+    const targetDocId = docId || currentDocId.value
+
+    // If already connected to this document, do nothing
+    if (provider && currentDocId.value === targetDocId) return
+
+    // Disconnect from current room if connected
+    if (provider) {
+      disconnectInternal()
+    }
+
+    // Update current doc ID
+    currentDocId.value = targetDocId
+
+    // Create new Y.Doc for this document
+    ydoc = new Y.Doc()
+    ytext = ydoc.getText('content')
+
+    // Update current user with new client ID
+    currentUser.value.id = ydoc.clientID.toString()
 
     provider = new WebsocketProvider(
       WS_URL,
-      `doc-${documentId}`,
+      `doc-${targetDocId}`,
       ydoc,
       { connect: true }
     )
@@ -135,18 +166,36 @@ export function useCollaboration(documentId: string) {
 
       users.value = userList
     })
+
+    // Setup store watch after connection
+    setupStoreWatch()
   }
 
-  // Disconnect from collaboration server
-  function disconnect() {
+  // Internal disconnect (without destroying everything)
+  function disconnectInternal() {
     if (provider) {
       ytext.unobserve(onYTextChange)
       provider.disconnect()
       provider.destroy()
       provider = null
     }
+    if (stopStoreWatch) {
+      stopStoreWatch()
+      stopStoreWatch = null
+    }
     connected.value = false
     users.value = []
+  }
+
+  // Disconnect from collaboration server
+  function disconnect() {
+    disconnectInternal()
+  }
+
+  // Switch to a different document
+  function switchDocument(newDocId: string) {
+    if (newDocId === currentDocId.value) return
+    connect(newDocId)
   }
 
   // Update cursor position in awareness
@@ -203,10 +252,25 @@ export function useCollaboration(documentId: string) {
     isUpdatingFromStore = false
   }
 
+  // Watch for document ID changes if ref is provided
+  let stopDocIdWatch: (() => void) | null = null
+  if (typeof documentIdRef !== 'string') {
+    stopDocIdWatch = watch(documentIdRef, (newDocId) => {
+      if (newDocId && newDocId !== currentDocId.value) {
+        switchDocument(newDocId)
+      }
+    })
+  }
+
   // Cleanup on unmount
   onUnmounted(() => {
-    stopStoreWatch()
-    disconnect()
+    if (stopStoreWatch) {
+      stopStoreWatch()
+    }
+    if (stopDocIdWatch) {
+      stopDocIdWatch()
+    }
+    disconnectInternal()
     ydoc.destroy()
   })
 
@@ -214,8 +278,10 @@ export function useCollaboration(documentId: string) {
     connected,
     users,
     currentUser,
+    currentDocId,
     connect,
     disconnect,
+    switchDocument,
     updateCursor,
     updateSelection,
     getYText,

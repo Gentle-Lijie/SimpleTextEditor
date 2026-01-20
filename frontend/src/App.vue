@@ -28,9 +28,9 @@ const AUTO_SAVE_DELAY = parseInt(import.meta.env.VITE_AUTO_SAVE_DELAY || '3000')
 const showSidebar = ref(true)
 const sidebarTab = ref<'files' | 'outline' | 'collab'>('files')
 
-// Collaboration - initialize with a default room, will update when document changes
+// Collaboration - use computed ref so it updates when document changes
 const currentDocId = computed(() => documentStore.currentDocument?.id || 'default')
-const collaboration = useCollaboration(currentDocId.value)
+const collaboration = useCollaboration(currentDocId)
 
 // Provide collaboration for child components
 provide('collaboration', collaboration)
