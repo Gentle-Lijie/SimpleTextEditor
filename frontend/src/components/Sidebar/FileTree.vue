@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { ref, onMounted } from 'vue'
-import { useDocumentStore } from '@/stores/document'
+import { useDocumentStore, DEFAULT_DOC_TITLE } from '@/stores/document'
 import { useEditorStore } from '@/stores/editor'
 
 const documentStore = useDocumentStore()
@@ -16,8 +16,7 @@ const isImporting = ref(false)
 
 const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:3001'
 
-// Default document content
-const DEFAULT_DOC_TITLE = '欢迎使用'
+// Default document content (read-only)
 const DEFAULT_DOC_CONTENT = `# 欢迎使用 SimpleTextEditor
 
 这是一个支持多人实时协作的 Markdown 编辑器。
@@ -92,7 +91,14 @@ function cancelCreate() {
 async function selectDocument(doc: typeof documentStore.documents[0]) {
   const fullDoc = await documentStore.fetchDocument(doc.id)
   if (fullDoc) {
-    editorStore.setContent(fullDoc.content)
+    // If it's the default document, always show the default content (read-only)
+    if (fullDoc.title === DEFAULT_DOC_TITLE) {
+      editorStore.setContent(DEFAULT_DOC_CONTENT)
+      // Reset the document content in database to default
+      await documentStore.updateDocument(doc.id, { content: DEFAULT_DOC_CONTENT })
+    } else {
+      editorStore.setContent(fullDoc.content)
+    }
     editorStore.markSaved()
   }
 }
@@ -341,16 +347,19 @@ function fileToBase64(file: File): Promise<string> {
                 <path fill="currentColor" d="M19 9h-4V3H9v6H5l7 7 7-7zM5 18v2h14v-2H5z"/>
               </svg>
             </button>
-            <button title="重命名" @click="startRename(doc)">
-              <svg viewBox="0 0 24 24" width="14" height="14">
-                <path fill="currentColor" d="M3 17.25V21h3.75L17.81 9.94l-3.75-3.75L3 17.25zM20.71 7.04c.39-.39.39-1.02 0-1.41l-2.34-2.34c-.39-.39-1.02-.39-1.41 0l-1.83 1.83 3.75 3.75 1.83-1.83z"/>
-              </svg>
-            </button>
-            <button title="删除" @click="deleteDoc(doc.id)">
-              <svg viewBox="0 0 24 24" width="14" height="14">
-                <path fill="currentColor" d="M6 19c0 1.1.9 2 2 2h8c1.1 0 2-.9 2-2V7H6v12zM19 4h-3.5l-1-1h-5l-1 1H5v2h14V4z"/>
-              </svg>
-            </button>
+            <!-- Hide rename/delete for default document -->
+            <template v-if="doc.title !== DEFAULT_DOC_TITLE">
+              <button title="重命名" @click="startRename(doc)">
+                <svg viewBox="0 0 24 24" width="14" height="14">
+                  <path fill="currentColor" d="M3 17.25V21h3.75L17.81 9.94l-3.75-3.75L3 17.25zM20.71 7.04c.39-.39.39-1.02 0-1.41l-2.34-2.34c-.39-.39-1.02-.39-1.41 0l-1.83 1.83 3.75 3.75 1.83-1.83z"/>
+                </svg>
+              </button>
+              <button title="删除" @click="deleteDoc(doc.id)">
+                <svg viewBox="0 0 24 24" width="14" height="14">
+                  <path fill="currentColor" d="M6 19c0 1.1.9 2 2 2h8c1.1 0 2-.9 2-2V7H6v12zM19 4h-3.5l-1-1h-5l-1 1H5v2h14V4z"/>
+                </svg>
+              </button>
+            </template>
           </div>
         </template>
       </div>

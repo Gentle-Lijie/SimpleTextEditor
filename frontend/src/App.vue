@@ -227,22 +227,22 @@ function handleGlobalKeydown(event: KeyboardEvent) {
   }
 }
 
-// Save current document
+// Save current document (skip if it's the default read-only document)
 async function saveDocument() {
   const doc = documentStore.currentDocument
-  if (doc) {
+  if (doc && !documentStore.isDefaultDocument) {
     editorStore.startSaving()
     await documentStore.updateDocument(doc.id, { content: editorStore.content })
     editorStore.markSaved()
   }
 }
 
-// Auto-save with configurable delay
+// Auto-save with configurable delay (skip default read-only document)
 let autoSaveTimer: ReturnType<typeof setTimeout> | null = null
 watch(() => editorStore.content, () => {
   if (autoSaveTimer) clearTimeout(autoSaveTimer)
   autoSaveTimer = setTimeout(() => {
-    if (editorStore.isDirty && documentStore.currentDocument) {
+    if (editorStore.isDirty && documentStore.currentDocument && !documentStore.isDefaultDocument) {
       saveDocument()
     }
   }, AUTO_SAVE_DELAY)
@@ -288,8 +288,8 @@ onUnmounted(() => {
             <path fill="currentColor" d="M17 3H5c-1.11 0-2 .9-2 2v14c0 1.1.89 2 2 2h14c1.1 0 2-.9 2-2V7l-4-4zm-5 16c-1.66 0-3-1.34-3-3s1.34-3 3-3 3 1.34 3 3-1.34 3-3 3zm3-10H5V5h10v4z"/>
           </svg>
         </button>
-        <span class="save-status" :class="{ saving: editorStore.isSaving, dirty: editorStore.isDirty }">
-          {{ editorStore.isSaving ? '保存中...' : editorStore.isDirty ? '未保存' : '已保存' }}
+        <span class="save-status" :class="{ saving: editorStore.isSaving, dirty: editorStore.isDirty && !documentStore.isDefaultDocument, readonly: documentStore.isDefaultDocument }">
+          {{ documentStore.isDefaultDocument ? '只读' : editorStore.isSaving ? '保存中...' : editorStore.isDirty ? '未保存' : '已保存' }}
         </span>
         <div class="collab-indicator" :class="{ connected: collaboration.connected.value }">
           <span class="collab-dot"></span>
@@ -480,6 +480,11 @@ onUnmounted(() => {
 
 .save-status.saving {
   color: var(--accent-primary);
+}
+
+.save-status.readonly {
+  color: var(--text-tertiary);
+  background: var(--bg-tertiary);
 }
 
 .collab-indicator {

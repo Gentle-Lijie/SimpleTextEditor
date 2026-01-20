@@ -2,9 +2,10 @@
 
 一个基于 Docker 部署的简约多人实时协作 Markdown 编辑器，功能对标 Typora。
 
-![License](https://img.shields.io/badge/license-MIT-blue.svg)
-![Node](https://img.shields.io/badge/node-%3E%3D20-green.svg)
-![Docker](https://img.shields.io/badge/docker-ready-blue.svg)
+
+<div align="center">
+<img src="https://img.shields.io/badge/license-MIT-blue.svg" alt="License"> <img src="https://img.shields.io/badge/node-%3E%3D20-green.svg" alt="Node"> <img src="https://img.shields.io/badge/docker-ready-blue.svg" alt="Docker">
+</div>
 
 ## ✨ 功能特性
 

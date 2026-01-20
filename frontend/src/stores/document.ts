@@ -4,6 +4,9 @@ import type { Document } from '@/types'
 
 const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:3001'
 
+// Default document title - this document is read-only
+export const DEFAULT_DOC_TITLE = '欢迎使用'
+
 export const useDocumentStore = defineStore('document', () => {
   // State
   const documents = ref<Document[]>([])
@@ -17,6 +20,11 @@ export const useDocumentStore = defineStore('document', () => {
     return [...documents.value].sort((a, b) =>
       new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime()
     )
+  })
+
+  // Check if current document is the default read-only document
+  const isDefaultDocument = computed(() => {
+    return currentDocument.value?.title === DEFAULT_DOC_TITLE
   })
 
   // Actions
@@ -178,6 +186,7 @@ export const useDocumentStore = defineStore('document', () => {
     error,
     // Computed
     sortedDocuments,
+    isDefaultDocument,
     // Actions
     fetchDocuments,
     fetchDocument,
