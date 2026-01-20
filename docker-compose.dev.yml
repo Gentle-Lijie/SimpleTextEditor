@@ -54,3 +54,4 @@ services:
       - GITHUB_OWNER=${GITHUB_OWNER:-Gentle-Lijie}
       - GITHUB_REPO=${GITHUB_REPO:-SimpleTextEditor}
       - GITHUB_BRANCH=${GITHUB_BRANCH:-images}
+      - PASSWORD=${PASSWORD}
