@@ -47,14 +47,72 @@ const DEFAULT_DOC_CONTENT = `# 欢迎使用 SimpleTextEditor
 祝您使用愉快！
 `
 
+// Update URL with document ID (without page reload)
+function updateUrlWithDocId(docId: string) {
+  const url = new URL(window.location.href)
+  url.searchParams.set('doc', docId)
+  window.history.replaceState({}, '', url.toString())
+}
+
+// Get document ID from URL parameter
+function getDocIdFromUrl(): string | null {
+  const url = new URL(window.location.href)
+  return url.searchParams.get('doc')
+}
+
+// Copy document link to clipboard
+async function copyDocumentLink(doc: typeof documentStore.documents[0], event: Event) {
+  event.stopPropagation()
+  const url = new URL(window.location.href)
+  url.searchParams.set('doc', doc.id)
+
+  try {
+    await navigator.clipboard.writeText(url.toString())
+    // Show brief feedback (could be improved with a toast notification)
+    alert('链接已复制到剪贴板')
+  } catch (err) {
+    console.error('Failed to copy link:', err)
+    alert('复制失败')
+  }
+}
+
 onMounted(async () => {
   await documentStore.fetchDocuments()
+
+  // Check for document ID in URL parameter
+  const urlDocId = getDocIdFromUrl()
 
   // If no documents exist, create default document
   if (documentStore.documents.length === 0) {
     const doc = await documentStore.createDocument(DEFAULT_DOC_TITLE, DEFAULT_DOC_CONTENT)
     if (doc) {
       editorStore.setContent(doc.content)
+      updateUrlWithDocId(doc.id)
+    }
+  } else if (urlDocId) {
+    // Try to open document from URL parameter
+    const targetDoc = documentStore.documents.find(d => d.id === urlDocId)
+    if (targetDoc) {
+      const fullDoc = await documentStore.fetchDocument(targetDoc.id)
+      if (fullDoc) {
+        if (fullDoc.title === DEFAULT_DOC_TITLE) {
+          editorStore.setContent(DEFAULT_DOC_CONTENT)
+        } else {
+          editorStore.setContent(fullDoc.content)
+        }
+        editorStore.markSaved()
+      }
+    } else {
+      // Document not found, open most recent
+      const mostRecent = documentStore.sortedDocuments[0]
+      if (mostRecent) {
+        const fullDoc = await documentStore.fetchDocument(mostRecent.id)
+        if (fullDoc) {
+          editorStore.setContent(fullDoc.content)
+          editorStore.markSaved()
+          updateUrlWithDocId(mostRecent.id)
+        }
+      }
     }
   } else if (!documentStore.currentDocument) {
     // Open the most recent document by default
@@ -64,6 +122,7 @@ onMounted(async () => {
       if (fullDoc) {
         editorStore.setContent(fullDoc.content)
         editorStore.markSaved()
+        updateUrlWithDocId(mostRecent.id)
       }
     }
   }
@@ -77,6 +136,7 @@ async function createNewDocument() {
   const doc = await documentStore.createDocument(newDocTitle.value)
   if (doc) {
     editorStore.setContent(doc.content)
+    updateUrlWithDocId(doc.id)
     isCreating.value = false
     newDocTitle.value = ''
   }
@@ -99,6 +159,7 @@ async function selectDocument(doc: typeof documentStore.documents[0]) {
       editorStore.setContent(fullDoc.content)
     }
     editorStore.markSaved()
+    updateUrlWithDocId(doc.id)
   }
 }
 
@@ -341,6 +402,11 @@ function fileToBase64(file: File): Promise<string> {
             <div class="file-date">{{ formatDate(doc.updatedAt) }}</div>
           </div>
           <div class="file-actions" @click.stop>
+            <button title="复制链接" @click="copyDocumentLink(doc, $event)">
+              <svg viewBox="0 0 24 24" width="14" height="14">
+                <path fill="currentColor" d="M16 1H4c-1.1 0-2 .9-2 2v14h2V3h12V1zm3 4H8c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h11c1.1 0 2-.9 2-2V7c0-1.1-.9-2-2-2zm0 16H8V7h11v14z"/>
+              </svg>
+            </button>
             <button title="导出" @click="exportDocument(doc, $event)">
               <svg viewBox="0 0 24 24" width="14" height="14">
                 <path fill="currentColor" d="M19 9h-4V3H9v6H5l7 7 7-7zM5 18v2h14v-2H5z"/>

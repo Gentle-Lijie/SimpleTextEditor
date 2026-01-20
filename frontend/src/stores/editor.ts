@@ -2,6 +2,18 @@ import { defineStore } from 'pinia'
 import { ref, computed } from 'vue'
 import type { EditorMode } from '@/types'
 
+// LocalStorage key for persisting editor mode
+const MODE_STORAGE_KEY = 'simpletexteditor-mode'
+
+// Get saved mode from localStorage or default to 'split'
+function getSavedMode(): EditorMode {
+  const saved = localStorage.getItem(MODE_STORAGE_KEY)
+  if (saved && ['source', 'preview', 'split', 'wysiwyg'].includes(saved)) {
+    return saved as EditorMode
+  }
+  return 'split'
+}
+
 export const useEditorStore = defineStore('editor', () => {
   // State
   const content = ref(`# Welcome to SimpleTextEditor
@@ -82,7 +94,7 @@ graph LR
 
 开始编辑你的文档吧！ :smile:
 `)
-  const mode = ref<EditorMode>('split')
+  const mode = ref<EditorMode>(getSavedMode())
   const isDirty = ref(false)
   const isSaving = ref(false)
   const cursorLine = ref(1)
@@ -114,6 +126,8 @@ graph LR
 
   function setMode(newMode: EditorMode) {
     mode.value = newMode
+    // Persist mode to localStorage
+    localStorage.setItem(MODE_STORAGE_KEY, newMode)
   }
 
   function setCursorPosition(line: number, column: number) {
