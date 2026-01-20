@@ -21,12 +21,8 @@ RUN pnpm build
 FROM node:20-alpine
 WORKDIR /app
 
-# Install pandoc and wkhtmltopdf for document conversion
-RUN apk add --no-cache \
-    pandoc \
-    wkhtmltopdf \
-    font-noto-cjk \
-    && rm -rf /var/cache/apk/*
+# Install pandoc for document conversion
+RUN apk add --no-cache pandoc
 
 # Install pnpm
 RUN corepack enable && corepack prepare pnpm@latest --activate

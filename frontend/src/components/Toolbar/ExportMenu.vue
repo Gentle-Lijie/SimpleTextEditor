@@ -11,16 +11,16 @@ const emit = defineEmits<{
 }>()
 
 const showDropdown = ref(false)
-const isExporting = ref(false)const isImporting = ref(false)
+const isExporting = ref(false)
+const isImporting = ref(false)
 const fileInputRef = ref<HTMLInputElement | null>(null)
 
 const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:3001'
 
-// Export formats
+// Export formats (PDF removed - requires wkhtmltopdf which is not available in Alpine)
 const exportFormats = [
   { id: 'markdown', label: 'Markdown (.md)', icon: 'M' },
   { id: 'html', label: 'HTML', icon: 'H' },
-  { id: 'pdf', label: 'PDF', icon: 'P' },
   { id: 'docx', label: 'Word (.docx)', icon: 'W' },
   { id: 'odt', label: 'OpenDocument (.odt)', icon: 'O' },
   { id: 'latex', label: 'LaTeX (.tex)', icon: 'L' },

@@ -9,8 +9,8 @@ import { v4 as uuidv4 } from 'uuid'
 const execAsync = promisify(exec)
 const router = Router()
 
-// Supported export formats
-const exportFormats = ['html', 'pdf', 'docx', 'odt', 'rst', 'latex', 'epub']
+// Supported export formats (PDF removed - requires wkhtmltopdf which is not available in Alpine)
+const exportFormats = ['html', 'docx', 'odt', 'rst', 'latex', 'epub']
 const importFormats = ['docx', 'odt', 'html', 'rst', 'latex', 'epub']
 
 // Export markdown to various formats using pandoc
@@ -44,18 +44,6 @@ router.post('/export', async (req: Request, res: Response) => {
       inputPath
     ]
 
-    // Add PDF-specific options (use wkhtmltopdf via HTML)
-    if (format === 'pdf') {
-      pandocArgs = [
-        '-f', 'markdown',
-        '-t', 'html5',
-        '--pdf-engine=wkhtmltopdf',
-        '--pdf-engine-opt=--enable-local-file-access',
-        '-o', outputPath,
-        inputPath
-      ]
-    }
-
     // Add HTML-specific options
     if (format === 'html') {
       pandocArgs = [
@@ -77,7 +65,6 @@ router.post('/export', async (req: Request, res: Response) => {
     // Set appropriate content type
     const contentTypes: Record<string, string> = {
       html: 'text/html',
-      pdf: 'application/pdf',
       docx: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
       odt: 'application/vnd.oasis.opendocument.text',
       rst: 'text/x-rst',
