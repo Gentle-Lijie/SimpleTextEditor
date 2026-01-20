@@ -1,8 +1,16 @@
 <script setup lang="ts">
-import { ref } from 'vue'
+import { ref, onMounted, onUnmounted } from 'vue'
 import { useEditorStore } from '@/stores/editor'
 import Editor from '@/components/Editor/Editor.vue'
+import Toolbar from '@/components/Toolbar/Toolbar.vue'
 import type { EditorMode } from '@/types'
+import {
+  markdownWrappers,
+  getHeadingPrefix,
+  getListPrefix,
+  getInsertTemplate,
+  getColorWrapper
+} from '@/utils/shortcuts'
 
 const editorStore = useEditorStore()
 const editorRef = ref<InstanceType<typeof Editor> | null>(null)
@@ -19,6 +27,100 @@ const modeLabels: Record<EditorMode, string> = {
   split: '分屏',
   wysiwyg: 'WYSIWYG'
 }
+
+// Handle toolbar commands
+function handleCommand(command: string, value?: string) {
+  const sourceEditor = editorRef.value?.getSourceEditor()
+  if (!sourceEditor) return
+
+  const textarea = sourceEditor.getTextarea()
+  if (!textarea) return
+
+  const start = textarea.selectionStart
+  const end = textarea.selectionEnd
+  const content = textarea.value
+  const selectedText = content.substring(start, end)
+
+  let newContent = content
+  let newCursorPos = start
+
+  // Handle different commands
+  if (command in markdownWrappers) {
+    const wrapper = markdownWrappers[command]
+    const wrappedText = wrapper.before + (selectedText || '文字') + wrapper.after
+    newContent = content.substring(0, start) + wrappedText + content.substring(end)
+    newCursorPos = start + wrapper.before.length + (selectedText ? selectedText.length : 2)
+  } else if (command === 'heading') {
+    const level = parseInt(value || '0')
+    const lineStart = content.lastIndexOf('\n', start - 1) + 1
+    const lineEnd = content.indexOf('\n', end)
+    const actualLineEnd = lineEnd === -1 ? content.length : lineEnd
+    const lineContent = content.substring(lineStart, actualLineEnd)
+
+    // Remove existing heading prefix
+    const cleanLine = lineContent.replace(/^#{1,6}\s*/, '')
+    const prefix = getHeadingPrefix(level)
+
+    newContent = content.substring(0, lineStart) + prefix + cleanLine + content.substring(actualLineEnd)
+    newCursorPos = lineStart + prefix.length + cleanLine.length
+  } else if (command === 'list') {
+    const listType = value || 'ul'
+    const prefix = getListPrefix(listType)
+    const lineStart = content.lastIndexOf('\n', start - 1) + 1
+
+    newContent = content.substring(0, lineStart) + prefix + content.substring(lineStart)
+    newCursorPos = lineStart + prefix.length
+  } else if (command === 'insert') {
+    const template = getInsertTemplate(value || '')
+    newContent = content.substring(0, start) + template + content.substring(end)
+    newCursorPos = start + template.length
+  } else if (command === 'textColor' || command === 'bgColor') {
+    const wrapper = getColorWrapper(command, value || '#000000')
+    if (wrapper.before) {
+      const wrappedText = wrapper.before + (selectedText || '文字') + wrapper.after
+      newContent = content.substring(0, start) + wrappedText + content.substring(end)
+      newCursorPos = start + wrapper.before.length + (selectedText ? selectedText.length : 2)
+    }
+  }
+
+  // Update content
+  editorStore.setContent(newContent)
+
+  // Restore focus and cursor position
+  requestAnimationFrame(() => {
+    textarea.focus()
+    textarea.setSelectionRange(newCursorPos, newCursorPos)
+  })
+}
+
+// Global keyboard shortcuts
+function handleGlobalKeydown(event: KeyboardEvent) {
+  const ctrl = event.ctrlKey || event.metaKey
+
+  // Ctrl+/ : Toggle mode
+  if (ctrl && event.key === '/') {
+    event.preventDefault()
+    const modes: EditorMode[] = ['source', 'split', 'preview']
+    const currentIndex = modes.indexOf(editorStore.mode)
+    const nextIndex = (currentIndex + 1) % modes.length
+    setMode(modes[nextIndex])
+  }
+
+  // Ctrl+S : Save (placeholder)
+  if (ctrl && event.key === 's') {
+    event.preventDefault()
+    // TODO: Implement save functionality
+    console.log('Save triggered')
+  }
+}
+
+onMounted(() => {
+  window.addEventListener('keydown', handleGlobalKeydown)
+})
+
+onUnmounted(() => {
+  window.removeEventListener('keydown', handleGlobalKeydown)
+})
 </script>
 
 <template>
@@ -46,6 +148,8 @@ const modeLabels: Record<EditorMode, string> = {
         </span>
       </div>
     </header>
+
+    <Toolbar @command="handleCommand" />
 
     <main class="app-main">
       <Editor ref="editorRef" />
