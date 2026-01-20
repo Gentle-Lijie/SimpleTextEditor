@@ -12,8 +12,7 @@ CREATE TABLE IF NOT EXISTS documents (
 CREATE TABLE IF NOT EXISTS yjs_documents (
     doc_id VARCHAR(36) PRIMARY KEY,
     state LONGBLOB NOT NULL,
-    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
-    FOREIGN KEY (doc_id) REFERENCES documents(id) ON DELETE CASCADE
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
 );
 
 -- Document versions (for version history)
@@ -22,7 +21,6 @@ CREATE TABLE IF NOT EXISTS document_versions (
     doc_id VARCHAR(36) NOT NULL,
     content LONGTEXT NOT NULL,
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-    FOREIGN KEY (doc_id) REFERENCES documents(id) ON DELETE CASCADE,
     INDEX idx_document_versions_doc_id (doc_id),
     INDEX idx_document_versions_created_at (created_at DESC)
 )
