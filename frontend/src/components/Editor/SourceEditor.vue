@@ -201,7 +201,6 @@ async function handlePaste(event: ClipboardEvent) {
 function getCursorStyle(user: CollaborationUser) {
   if (!user.cursor || !textareaRef.value) return {}
 
-  const textarea = textareaRef.value
   const { line, column } = user.cursor
 
   // Calculate position based on line and column

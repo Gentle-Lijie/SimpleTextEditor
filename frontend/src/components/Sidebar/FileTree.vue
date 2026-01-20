@@ -11,7 +11,6 @@ const newDocTitle = ref('')
 const renamingId = ref<string | null>(null)
 const renameTitle = ref('')
 const fileInputRef = ref<HTMLInputElement | null>(null)
-const isExporting = ref(false)
 const isImporting = ref(false)
 
 const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:3001'

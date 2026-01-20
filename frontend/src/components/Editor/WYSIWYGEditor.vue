@@ -1,18 +1,30 @@
 <script setup lang="ts">
-import { ref, watch, onMounted, computed, nextTick, inject } from 'vue'
+import { ref, watch, onMounted, onUnmounted, computed, nextTick, inject } from 'vue'
 import { useEditorStore } from '@/stores/editor'
 import { renderMarkdown } from '@/utils/markdown-it-config'
 import DOMPurify from 'dompurify'
 import TurndownService from 'turndown'
 // @ts-expect-error - no type definitions
 import { gfm } from 'turndown-plugin-gfm'
-import { uploadImageFromClipboard, hasImageInClipboard, generateImageMarkdown } from '@/utils/imageUpload'
+import { uploadImageFromClipboard, hasImageInClipboard } from '@/utils/imageUpload'
+import SelectionToolbar from './SelectionToolbar.vue'
 
 const editorStore = useEditorStore()
 const editorElement = ref<HTMLDivElement | null>(null)
 const isComposing = ref(false)
 const lastSavedSelection = ref<{ start: number; end: number } | null>(null)
 const isUploading = ref(false)
+
+// Selection toolbar state
+const showSelectionToolbar = ref(false)
+const selectionToolbarPosition = ref({ x: 0, y: 0 })
+const selectedElement = ref<HTMLElement | null>(null)
+
+// Image resize state
+const selectedImage = ref<HTMLImageElement | null>(null)
+const imageResizeHandles = ref<{ x: number; y: number; width: number; height: number } | null>(null)
+const isResizing = ref(false)
+const resizeStartData = ref<{ startX: number; startY: number; startWidth: number; startHeight: number; handle: string } | null>(null)
 
 // Get collaboration from parent
 const collaboration = inject<any>('collaboration')
@@ -34,11 +46,11 @@ turndownService.use(gfm)
 
 // Custom rules for better Markdown conversion
 turndownService.addRule('taskList', {
-  filter: (node) => {
+  filter: (node: HTMLElement) => {
     return node.nodeName === 'INPUT' &&
            node.getAttribute('type') === 'checkbox'
   },
-  replacement: (_content, node) => {
+  replacement: (_content: string, node: HTMLElement) => {
     const checked = (node as HTMLInputElement).checked
     return checked ? '[x] ' : '[ ] '
   }
@@ -46,38 +58,39 @@ turndownService.addRule('taskList', {
 
 turndownService.addRule('highlight', {
   filter: 'mark',
-  replacement: (content) => `==${content}==`
+  replacement: (content: string) => `==${content}==`
 })
 
 turndownService.addRule('subscript', {
   filter: 'sub',
-  replacement: (content) => `~${content}~`
+  replacement: (content: string) => `~${content}~`
 })
 
 turndownService.addRule('superscript', {
   filter: 'sup',
-  replacement: (content) => `^${content}^`
+  replacement: (content: string) => `^${content}^`
 })
 
 // Convert colored text to HTML with data attributes for markdown conversion
 turndownService.addRule('coloredText', {
-  filter: (node) => {
+  filter: (node: HTMLElement) => {
     if (node.nodeName !== 'SPAN') return false
     const style = node.getAttribute('style') || ''
     return style.includes('color:') || style.includes('background-color:')
   },
-  replacement: (content, node) => {
+  replacement: (content: string, node: HTMLElement) => {
     const el = node as HTMLElement
     const style = el.getAttribute('style') || ''
-    // Preserve HTML for colored text
     return `<span style="${style}">${content}</span>`
   }
 })
 
 // Preserve font color
 turndownService.addRule('fontColor', {
-  filter: 'font',
-  replacement: (content, node) => {
+  filter: (node: HTMLElement): boolean => {
+    return node.nodeName === 'FONT'
+  },
+  replacement: (content: string, node: HTMLElement) => {
     const el = node as HTMLElement
     const color = el.getAttribute('color')
     if (color) {
@@ -87,12 +100,35 @@ turndownService.addRule('fontColor', {
   }
 })
 
-// Rendered HTML content
+// Handle images with width/height attributes
+turndownService.addRule('imageWithSize', {
+  filter: (node: HTMLElement): boolean => {
+    return node.nodeName === 'IMG' && !!(node.getAttribute('width') || node.getAttribute('style')?.includes('width'))
+  },
+  replacement: (_content: string, node: HTMLElement) => {
+    const img = node as HTMLImageElement
+    const alt = img.alt || 'image'
+    const src = img.src
+    const width = img.getAttribute('width') || img.style.width?.replace('px', '')
+    const height = img.getAttribute('height') || img.style.height?.replace('px', '')
+
+    if (width || height) {
+      const style = [
+        width ? `width="${width}"` : '',
+        height ? `height="${height}"` : ''
+      ].filter(Boolean).join(' ')
+      return `<img src="${src}" alt="${alt}" ${style} />`
+    }
+    return `![${alt}](${src})`
+  }
+})
+
+// Rendered HTML content with markdown source code hints
 const renderedContent = computed(() => {
   const html = renderMarkdown(editorStore.content)
   return DOMPurify.sanitize(html, {
     ADD_TAGS: ['input'],
-    ADD_ATTR: ['checked', 'type', 'disabled', 'style']
+    ADD_ATTR: ['checked', 'type', 'disabled', 'style', 'data-md-source', 'data-md-type']
   })
 })
 
@@ -107,19 +143,184 @@ watch(() => editorStore.content, () => {
     nextTick(() => {
       if (editorElement.value) {
         editorElement.value.innerHTML = renderedContent.value
+        addMarkdownSourceHints()
         initializeMermaid()
+        setupImageHandlers()
         restoreSelection()
       }
     })
   }
 }, { immediate: true })
 
+// Add markdown source hints to elements
+function addMarkdownSourceHints() {
+  if (!editorElement.value) return
+
+  // Add source hints for various markdown elements
+  const mappings: { selector: string; getSource: (el: HTMLElement) => string; type: string }[] = [
+    { selector: 'strong', getSource: (el) => `**${el.textContent}**`, type: 'bold' },
+    { selector: 'em', getSource: (el) => `*${el.textContent}*`, type: 'italic' },
+    { selector: 'del', getSource: (el) => `~~${el.textContent}~~`, type: 'strikethrough' },
+    { selector: 'mark', getSource: (el) => `==${el.textContent}==`, type: 'highlight' },
+    { selector: 'code:not(pre code)', getSource: (el) => `\`${el.textContent}\``, type: 'inline-code' },
+    { selector: 'sub', getSource: (el) => `~${el.textContent}~`, type: 'subscript' },
+    { selector: 'sup', getSource: (el) => `^${el.textContent}^`, type: 'superscript' },
+    { selector: 'a', getSource: (el) => `[${el.textContent}](${(el as HTMLAnchorElement).href})`, type: 'link' },
+    { selector: 'img', getSource: (el) => `![${(el as HTMLImageElement).alt || 'image'}](${(el as HTMLImageElement).src})`, type: 'image' },
+    { selector: 'h1', getSource: (el) => `# ${el.textContent}`, type: 'heading' },
+    { selector: 'h2', getSource: (el) => `## ${el.textContent}`, type: 'heading' },
+    { selector: 'h3', getSource: (el) => `### ${el.textContent}`, type: 'heading' },
+    { selector: 'h4', getSource: (el) => `#### ${el.textContent}`, type: 'heading' },
+    { selector: 'h5', getSource: (el) => `##### ${el.textContent}`, type: 'heading' },
+    { selector: 'h6', getSource: (el) => `###### ${el.textContent}`, type: 'heading' },
+    { selector: 'blockquote', getSource: () => '> ...', type: 'blockquote' },
+    { selector: 'hr', getSource: () => '---', type: 'hr' },
+  ]
+
+  for (const { selector, getSource, type } of mappings) {
+    editorElement.value.querySelectorAll(selector).forEach(el => {
+      const element = el as HTMLElement
+      element.setAttribute('data-md-source', getSource(element))
+      element.setAttribute('data-md-type', type)
+    })
+  }
+}
+
+// Setup image click handlers for selection
+function setupImageHandlers() {
+  if (!editorElement.value) return
+
+  editorElement.value.querySelectorAll('img').forEach(img => {
+    img.addEventListener('click', (e) => {
+      e.stopPropagation()
+      selectImage(img as HTMLImageElement)
+    })
+  })
+}
+
+// Select an image for resizing
+function selectImage(img: HTMLImageElement) {
+  // Deselect previous
+  if (selectedImage.value) {
+    selectedImage.value.classList.remove('selected-image')
+  }
+
+  selectedImage.value = img
+  img.classList.add('selected-image')
+
+  // Calculate position for resize handles
+  const rect = img.getBoundingClientRect()
+  const containerRect = editorElement.value!.getBoundingClientRect()
+
+  imageResizeHandles.value = {
+    x: rect.left - containerRect.left + editorElement.value!.scrollLeft,
+    y: rect.top - containerRect.top + editorElement.value!.scrollTop,
+    width: rect.width,
+    height: rect.height
+  }
+
+  // Hide selection toolbar when image is selected
+  showSelectionToolbar.value = false
+}
+
+// Deselect image
+function deselectImage() {
+  if (selectedImage.value) {
+    selectedImage.value.classList.remove('selected-image')
+    selectedImage.value = null
+  }
+  imageResizeHandles.value = null
+}
+
+// Start resizing image
+function startImageResize(handle: string, e: MouseEvent) {
+  if (!selectedImage.value) return
+
+  e.preventDefault()
+  e.stopPropagation()
+
+  isResizing.value = true
+  resizeStartData.value = {
+    startX: e.clientX,
+    startY: e.clientY,
+    startWidth: selectedImage.value.offsetWidth,
+    startHeight: selectedImage.value.offsetHeight,
+    handle
+  }
+
+  document.addEventListener('mousemove', handleImageResize)
+  document.addEventListener('mouseup', stopImageResize)
+}
+
+// Handle image resizing
+function handleImageResize(e: MouseEvent) {
+  if (!isResizing.value || !resizeStartData.value || !selectedImage.value) return
+
+  const { startX, startY, startWidth, startHeight, handle } = resizeStartData.value
+  const deltaX = e.clientX - startX
+  const deltaY = e.clientY - startY
+
+  let newWidth = startWidth
+  let newHeight = startHeight
+  const aspectRatio = startWidth / startHeight
+
+  // Calculate new dimensions based on handle
+  if (handle.includes('e')) {
+    newWidth = Math.max(50, startWidth + deltaX)
+  } else if (handle.includes('w')) {
+    newWidth = Math.max(50, startWidth - deltaX)
+  }
+
+  if (handle.includes('s')) {
+    newHeight = Math.max(50, startHeight + deltaY)
+  } else if (handle.includes('n')) {
+    newHeight = Math.max(50, startHeight - deltaY)
+  }
+
+  // Maintain aspect ratio for corner handles
+  if (handle.length === 2) {
+    if (Math.abs(deltaX) > Math.abs(deltaY)) {
+      newHeight = newWidth / aspectRatio
+    } else {
+      newWidth = newHeight * aspectRatio
+    }
+  }
+
+  // Apply new dimensions
+  selectedImage.value.style.width = `${Math.round(newWidth)}px`
+  selectedImage.value.style.height = `${Math.round(newHeight)}px`
+  selectedImage.value.setAttribute('width', Math.round(newWidth).toString())
+  selectedImage.value.setAttribute('height', Math.round(newHeight).toString())
+
+  // Update handles position
+  const rect = selectedImage.value.getBoundingClientRect()
+  const containerRect = editorElement.value!.getBoundingClientRect()
+
+  imageResizeHandles.value = {
+    x: rect.left - containerRect.left + editorElement.value!.scrollLeft,
+    y: rect.top - containerRect.top + editorElement.value!.scrollTop,
+    width: rect.width,
+    height: rect.height
+  }
+}
+
+// Stop image resizing
+function stopImageResize() {
+  if (isResizing.value) {
+    isResizing.value = false
+    resizeStartData.value = null
+    document.removeEventListener('mousemove', handleImageResize)
+    document.removeEventListener('mouseup', stopImageResize)
+    handleInput()
+  }
+}
+
 // Initialize mermaid diagrams
 async function initializeMermaid() {
   const mermaidElements = editorElement.value?.querySelectorAll('.mermaid')
   if (mermaidElements && mermaidElements.length > 0) {
     const mermaid = await import('mermaid')
-    mermaid.default.init(undefined, mermaidElements as NodeListOf<Element>)
+    mermaid.default.init(undefined, mermaidElements as NodeListOf<HTMLElement>)
   }
 }
 
@@ -131,7 +332,6 @@ function saveSelection() {
   const range = selection.getRangeAt(0)
   if (!editorElement.value.contains(range.commonAncestorContainer)) return
 
-  // Convert to text offset
   const preCaretRange = range.cloneRange()
   preCaretRange.selectNodeContents(editorElement.value)
   preCaretRange.setEnd(range.startContainer, range.startOffset)
@@ -191,21 +391,14 @@ function restoreSelection() {
 
 // Markdown patterns for instant rendering
 const markdownPatterns = [
-  // Bold: **text** or __text__
   { pattern: /\*\*([^*]+)\*\*$/, replacement: '<strong>$1</strong>' },
   { pattern: /__([^_]+)__$/, replacement: '<strong>$1</strong>' },
-  // Italic: *text* or _text_
   { pattern: /(?<!\*)\*([^*]+)\*(?!\*)$/, replacement: '<em>$1</em>' },
   { pattern: /(?<!_)_([^_]+)_(?!_)$/, replacement: '<em>$1</em>' },
-  // Strikethrough: ~~text~~
   { pattern: /~~([^~]+)~~$/, replacement: '<del>$1</del>' },
-  // Highlight: ==text==
   { pattern: /==([^=]+)==$/, replacement: '<mark>$1</mark>' },
-  // Inline code: `code`
   { pattern: /`([^`]+)`$/, replacement: '<code>$1</code>' },
-  // Subscript: ~text~
   { pattern: /(?<!~)~([^~]+)~(?!~)$/, replacement: '<sub>$1</sub>' },
-  // Superscript: ^text^
   { pattern: /\^([^^]+)\^$/, replacement: '<sup>$1</sup>' },
 ]
 
@@ -226,34 +419,28 @@ function checkAndRenderMarkdown() {
   for (const { pattern, replacement } of markdownPatterns) {
     const match = textBeforeCursor.match(pattern)
     if (match) {
-      // Found a pattern, replace it
       const fullMatch = match[0]
       const startIdx = cursorPos - fullMatch.length
 
-      // Create the new HTML element
       const temp = document.createElement('div')
       temp.innerHTML = fullMatch.replace(pattern, replacement)
       const newElement = temp.firstChild
 
       if (newElement) {
-        // Split the text node and insert the new element
         const beforeText = text.substring(0, startIdx)
         const afterText = text.substring(cursorPos)
 
         const parent = textNode.parentNode
         if (!parent) return false
 
-        // Create text nodes for before and after
         const beforeNode = document.createTextNode(beforeText)
         const afterNode = document.createTextNode(afterText)
 
-        // Replace
         parent.insertBefore(beforeNode, textNode)
         parent.insertBefore(newElement, textNode)
         parent.insertBefore(afterNode, textNode)
         parent.removeChild(textNode)
 
-        // Move cursor after the new element
         const newRange = document.createRange()
         newRange.setStartAfter(newElement)
         newRange.collapse(true)
@@ -275,10 +462,8 @@ function handleInput() {
   isLocalInput = true
   isUpdatingFromSource = true
 
-  // Try to render markdown patterns
-  const rendered = checkAndRenderMarkdown()
+  checkAndRenderMarkdown()
 
-  // Convert HTML back to Markdown
   const html = editorElement.value.innerHTML
   const markdown = turndownService.turndown(html)
 
@@ -302,15 +487,167 @@ function handleCompositionEnd() {
 
 // Clear formatting for new line
 function clearFormattingForNewLine() {
-  // Remove any inline styles from the current selection
   document.execCommand('removeFormat', false)
+}
+
+// Handle toolbar commands
+function handleToolbarCommand(command: string, value?: string) {
+  switch (command) {
+    case 'bold':
+      document.execCommand('bold', false)
+      break
+    case 'italic':
+      document.execCommand('italic', false)
+      break
+    case 'underline':
+      document.execCommand('underline', false)
+      break
+    case 'strikethrough':
+      document.execCommand('strikeThrough', false)
+      break
+    case 'highlight':
+      if (value) {
+        document.execCommand('backColor', false, value)
+      }
+      break
+    case 'foreColor':
+      if (value) {
+        document.execCommand('foreColor', false, value)
+      }
+      break
+    case 'heading':
+      if (value) {
+        document.execCommand('formatBlock', false, `h${value}`)
+      }
+      break
+    case 'quote':
+      document.execCommand('formatBlock', false, 'blockquote')
+      break
+    case 'taskList':
+      insertTaskList()
+      break
+    case 'link':
+      insertLink()
+      break
+    case 'image':
+      insertImage()
+      break
+    case 'code':
+    case 'inlineCode':
+      wrapWithTag('code')
+      break
+    case 'codeBlock':
+      insertCodeBlock()
+      break
+    case 'superscript':
+      wrapWithTag('sup')
+      break
+    case 'subscript':
+      wrapWithTag('sub')
+      break
+    case 'horizontalRule':
+      document.execCommand('insertHorizontalRule', false)
+      break
+  }
+
+  handleInput()
+  showSelectionToolbar.value = false
+}
+
+// Insert task list
+function insertTaskList() {
+  const selection = window.getSelection()
+  if (!selection || selection.rangeCount === 0) return
+
+  const range = selection.getRangeAt(0)
+  const text = range.toString() || '任务项'
+
+  const li = document.createElement('li')
+  const checkbox = document.createElement('input')
+  checkbox.type = 'checkbox'
+  li.appendChild(checkbox)
+  li.appendChild(document.createTextNode(' ' + text))
+
+  const ul = document.createElement('ul')
+  ul.appendChild(li)
+
+  range.deleteContents()
+  range.insertNode(ul)
+}
+
+// Insert link
+function insertLink() {
+  const selection = window.getSelection()
+  if (!selection || selection.rangeCount === 0) return
+
+  const range = selection.getRangeAt(0)
+  const text = range.toString() || '链接文字'
+  const url = prompt('请输入链接地址:', 'https://')
+
+  if (url) {
+    const link = document.createElement('a')
+    link.href = url
+    link.textContent = text
+    range.deleteContents()
+    range.insertNode(link)
+  }
+}
+
+// Insert image
+function insertImage() {
+  const url = prompt('请输入图片地址:', 'https://')
+
+  if (url) {
+    const img = document.createElement('img')
+    img.src = url
+    img.alt = 'image'
+
+    const selection = window.getSelection()
+    if (selection && selection.rangeCount > 0) {
+      const range = selection.getRangeAt(0)
+      range.deleteContents()
+      range.insertNode(img)
+    }
+  }
+}
+
+// Insert code block
+function insertCodeBlock() {
+  const selection = window.getSelection()
+  if (!selection || selection.rangeCount === 0) return
+
+  const range = selection.getRangeAt(0)
+  const text = range.toString() || '代码'
+
+  const pre = document.createElement('pre')
+  const code = document.createElement('code')
+  code.textContent = text
+  pre.appendChild(code)
+
+  range.deleteContents()
+  range.insertNode(pre)
+}
+
+// Wrap selection with tag
+function wrapWithTag(tagName: string) {
+  const selection = window.getSelection()
+  if (!selection || selection.rangeCount === 0) return
+
+  const range = selection.getRangeAt(0)
+  const text = range.toString()
+
+  if (text) {
+    const element = document.createElement(tagName)
+    element.textContent = text
+    range.deleteContents()
+    range.insertNode(element)
+  }
 }
 
 // Handle keyboard shortcuts
 function handleKeydown(event: KeyboardEvent) {
   const ctrl = event.ctrlKey || event.metaKey
 
-  // Bold: Ctrl+B
   if (ctrl && event.key === 'b') {
     event.preventDefault()
     document.execCommand('bold', false)
@@ -318,7 +655,6 @@ function handleKeydown(event: KeyboardEvent) {
     return
   }
 
-  // Italic: Ctrl+I
   if (ctrl && event.key === 'i') {
     event.preventDefault()
     document.execCommand('italic', false)
@@ -326,7 +662,6 @@ function handleKeydown(event: KeyboardEvent) {
     return
   }
 
-  // Underline: Ctrl+U
   if (ctrl && event.key === 'u') {
     event.preventDefault()
     document.execCommand('underline', false)
@@ -334,7 +669,6 @@ function handleKeydown(event: KeyboardEvent) {
     return
   }
 
-  // Handle tab for lists
   if (event.key === 'Tab') {
     event.preventDefault()
     const selection = window.getSelection()
@@ -342,7 +676,6 @@ function handleKeydown(event: KeyboardEvent) {
       const range = selection.getRangeAt(0)
       const listItem = range.startContainer.parentElement?.closest('li')
       if (listItem) {
-        // Indent/outdent list item
         if (event.shiftKey) {
           document.execCommand('outdent', false)
         } else {
@@ -350,28 +683,30 @@ function handleKeydown(event: KeyboardEvent) {
         }
         handleInput()
       } else {
-        // Insert tab character
         document.execCommand('insertText', false, '\t')
         handleInput()
       }
     }
   }
 
-  // Handle Enter for new paragraphs - clear formatting
   if (event.key === 'Enter' && !event.shiftKey) {
-    // Let browser handle the enter, then clear formatting on new line
     setTimeout(() => {
       clearFormattingForNewLine()
       handleInput()
     }, 0)
   }
+
+  // Escape to close toolbar or deselect image
+  if (event.key === 'Escape') {
+    showSelectionToolbar.value = false
+    deselectImage()
+  }
 }
 
-// Handle paste - check for images first, then plain text
+// Handle paste
 async function handlePaste(event: ClipboardEvent) {
   if (!event.clipboardData) return
 
-  // Check if clipboard has image
   if (hasImageInClipboard(event.clipboardData)) {
     event.preventDefault()
     isUploading.value = true
@@ -379,7 +714,6 @@ async function handlePaste(event: ClipboardEvent) {
     try {
       const result = await uploadImageFromClipboard(event.clipboardData)
       if (result && result.success && result.url) {
-        // Insert image
         const img = document.createElement('img')
         img.src = result.url
         img.alt = 'image'
@@ -409,7 +743,6 @@ async function handlePaste(event: ClipboardEvent) {
     return
   }
 
-  // Plain text paste
   event.preventDefault()
   const text = event.clipboardData?.getData('text/plain') || ''
   document.execCommand('insertText', false, text)
@@ -419,10 +752,58 @@ async function handlePaste(event: ClipboardEvent) {
 // Handle checkbox clicks
 function handleClick(event: MouseEvent) {
   const target = event.target as HTMLElement
+
+  // Handle checkbox
   if (target.tagName === 'INPUT' && target.getAttribute('type') === 'checkbox') {
-    // Toggle checkbox
     setTimeout(() => handleInput(), 0)
+    return
   }
+
+  // Handle image click
+  if (target.tagName === 'IMG') {
+    selectImage(target as HTMLImageElement)
+    return
+  }
+
+  // Deselect image when clicking elsewhere
+  if (selectedImage.value && target !== selectedImage.value) {
+    deselectImage()
+  }
+}
+
+// Handle mouse up for selection toolbar
+function handleMouseUp(event: MouseEvent) {
+  // Don't show toolbar if clicking on toolbar itself
+  if ((event.target as HTMLElement).closest('.selection-toolbar')) return
+
+  // Don't show if image is selected
+  if (selectedImage.value) return
+
+  setTimeout(() => {
+    const selection = window.getSelection()
+    if (!selection || selection.isCollapsed || !editorElement.value) {
+      showSelectionToolbar.value = false
+      return
+    }
+
+    const text = selection.toString().trim()
+    if (!text) {
+      showSelectionToolbar.value = false
+      return
+    }
+
+    // Get selection bounds
+    const range = selection.getRangeAt(0)
+    const rect = range.getBoundingClientRect()
+
+    // Position toolbar above selection
+    selectionToolbarPosition.value = {
+      x: rect.left + rect.width / 2,
+      y: rect.top - 10
+    }
+
+    showSelectionToolbar.value = true
+  }, 10)
 }
 
 // Handle selection change for collaboration
@@ -435,7 +816,6 @@ function handleSelectionChange() {
   const range = selection.getRangeAt(0)
   if (!editorElement.value.contains(range.commonAncestorContainer)) return
 
-  // Get cursor position
   const preCaretRange = range.cloneRange()
   preCaretRange.selectNodeContents(editorElement.value)
   preCaretRange.setEnd(range.startContainer, range.startOffset)
@@ -444,7 +824,6 @@ function handleSelectionChange() {
   preCaretRange.setEnd(range.endContainer, range.endOffset)
   const end = preCaretRange.toString().length
 
-  // Calculate line and column
   const textBeforeCursor = editorElement.value.innerText.substring(0, start)
   const lines = textBeforeCursor.split('\n')
   const line = lines.length
@@ -456,7 +835,40 @@ function handleSelectionChange() {
   }
 }
 
-// Expose sync method for external use (e.g., toolbar commands)
+// Handle cursor move - show/hide source hints
+function handleCursorMove() {
+  if (!editorElement.value) return
+
+  const selection = window.getSelection()
+  if (!selection || selection.rangeCount === 0) return
+
+  const range = selection.getRangeAt(0)
+
+  // Remove previous active hints
+  editorElement.value.querySelectorAll('.show-source').forEach(el => {
+    el.classList.remove('show-source')
+  })
+
+  // Find parent element with markdown source
+  let node: Node | null = range.startContainer
+  while (node && node !== editorElement.value) {
+    if (node.nodeType === Node.ELEMENT_NODE) {
+      const element = node as HTMLElement
+      if (element.hasAttribute('data-md-source')) {
+        element.classList.add('show-source')
+        break
+      }
+    }
+    node = node.parentNode
+  }
+}
+
+// Close toolbar
+function closeToolbar() {
+  showSelectionToolbar.value = false
+}
+
+// Expose sync method for external use
 function syncToMarkdown() {
   handleInput()
 }
@@ -468,11 +880,20 @@ defineExpose({
 onMounted(() => {
   if (editorElement.value) {
     editorElement.value.innerHTML = renderedContent.value
+    addMarkdownSourceHints()
     initializeMermaid()
+    setupImageHandlers()
   }
 
-  // Listen for selection changes
   document.addEventListener('selectionchange', handleSelectionChange)
+  document.addEventListener('selectionchange', handleCursorMove)
+})
+
+onUnmounted(() => {
+  document.removeEventListener('selectionchange', handleSelectionChange)
+  document.removeEventListener('selectionchange', handleCursorMove)
+  document.removeEventListener('mousemove', handleImageResize)
+  document.removeEventListener('mouseup', stopImageResize)
 })
 </script>
 
@@ -489,7 +910,43 @@ onMounted(() => {
       @keydown="handleKeydown"
       @paste="handlePaste"
       @click="handleClick"
+      @mouseup="handleMouseUp"
     />
+
+    <!-- Selection Toolbar -->
+    <SelectionToolbar
+      :visible="showSelectionToolbar"
+      :position="selectionToolbarPosition"
+      :selected-element="selectedElement"
+      @command="handleToolbarCommand"
+      @close="closeToolbar"
+    />
+
+    <!-- Image Resize Handles -->
+    <div
+      v-if="imageResizeHandles && selectedImage"
+      class="image-resize-container"
+      :style="{
+        left: `${imageResizeHandles.x}px`,
+        top: `${imageResizeHandles.y}px`,
+        width: `${imageResizeHandles.width}px`,
+        height: `${imageResizeHandles.height}px`
+      }"
+    >
+      <div class="resize-handle nw" @mousedown="startImageResize('nw', $event)"></div>
+      <div class="resize-handle n" @mousedown="startImageResize('n', $event)"></div>
+      <div class="resize-handle ne" @mousedown="startImageResize('ne', $event)"></div>
+      <div class="resize-handle w" @mousedown="startImageResize('w', $event)"></div>
+      <div class="resize-handle e" @mousedown="startImageResize('e', $event)"></div>
+      <div class="resize-handle sw" @mousedown="startImageResize('sw', $event)"></div>
+      <div class="resize-handle s" @mousedown="startImageResize('s', $event)"></div>
+      <div class="resize-handle se" @mousedown="startImageResize('se', $event)"></div>
+
+      <!-- Image source hint -->
+      <div class="image-source-hint">
+        {{ selectedImage.getAttribute('data-md-source') || `![](${selectedImage.src})` }}
+      </div>
+    </div>
 
     <!-- Upload indicator -->
     <div v-if="isUploading" class="upload-indicator">
@@ -518,15 +975,53 @@ onMounted(() => {
   color: var(--text-primary);
 }
 
-/* Make the editor feel more like a document */
 .wysiwyg-editor:empty::before {
   content: '开始编写...';
   color: var(--text-tertiary);
 }
 
-/* Focus styling */
 .wysiwyg-editor:focus {
   outline: none;
+}
+
+/* Markdown source hints */
+.wysiwyg-editor :deep([data-md-source]) {
+  position: relative;
+}
+
+.wysiwyg-editor :deep([data-md-source].show-source)::before {
+  content: attr(data-md-source);
+  position: absolute;
+  left: 0;
+  top: -1.5em;
+  font-size: 11px;
+  font-family: var(--font-mono);
+  color: var(--text-tertiary);
+  background: var(--bg-secondary);
+  padding: 1px 4px;
+  border-radius: 2px;
+  white-space: nowrap;
+  pointer-events: none;
+  z-index: 5;
+}
+
+/* For inline elements, position differently */
+.wysiwyg-editor :deep(strong.show-source)::before,
+.wysiwyg-editor :deep(em.show-source)::before,
+.wysiwyg-editor :deep(del.show-source)::before,
+.wysiwyg-editor :deep(mark.show-source)::before,
+.wysiwyg-editor :deep(code.show-source:not(pre code))::before,
+.wysiwyg-editor :deep(sub.show-source)::before,
+.wysiwyg-editor :deep(sup.show-source)::before {
+  top: auto;
+  bottom: 100%;
+  margin-bottom: 2px;
+}
+
+/* Image selection styling */
+.wysiwyg-editor :deep(img.selected-image) {
+  outline: 2px solid var(--accent-primary);
+  outline-offset: 2px;
 }
 
 /* Editable elements styling */
@@ -552,13 +1047,11 @@ onMounted(() => {
   margin: 0.25em 0;
 }
 
-/* Task list styling */
 .wysiwyg-editor :deep(input[type="checkbox"]) {
   margin-right: 0.5em;
   cursor: pointer;
 }
 
-/* Code blocks */
 .wysiwyg-editor :deep(pre) {
   background: var(--bg-tertiary);
   padding: 1em;
@@ -571,14 +1064,12 @@ onMounted(() => {
   font-size: 0.9em;
 }
 
-/* Inline code */
 .wysiwyg-editor :deep(:not(pre) > code) {
   background: var(--bg-tertiary);
   padding: 0.2em 0.4em;
   border-radius: var(--radius-sm);
 }
 
-/* Blockquotes */
 .wysiwyg-editor :deep(blockquote) {
   border-left: 4px solid var(--accent-primary);
   margin: 1em 0;
@@ -586,7 +1077,6 @@ onMounted(() => {
   color: var(--text-secondary);
 }
 
-/* Tables */
 .wysiwyg-editor :deep(table) {
   width: 100%;
   border-collapse: collapse;
@@ -603,7 +1093,6 @@ onMounted(() => {
   background: var(--bg-secondary);
 }
 
-/* Links */
 .wysiwyg-editor :deep(a) {
   color: var(--accent-primary);
   text-decoration: none;
@@ -613,27 +1102,25 @@ onMounted(() => {
   text-decoration: underline;
 }
 
-/* Images */
 .wysiwyg-editor :deep(img) {
   max-width: 100%;
   height: auto;
   border-radius: var(--radius-md);
+  cursor: pointer;
+  transition: outline 0.15s ease;
 }
 
-/* Horizontal rule */
 .wysiwyg-editor :deep(hr) {
   border: none;
   border-top: 1px solid var(--border-color);
   margin: 2em 0;
 }
 
-/* Mark/highlight */
 .wysiwyg-editor :deep(mark) {
   background: #fff59d;
   padding: 0.1em 0.2em;
 }
 
-/* Strong and em */
 .wysiwyg-editor :deep(strong) {
   font-weight: 700;
 }
@@ -642,12 +1129,10 @@ onMounted(() => {
   font-style: italic;
 }
 
-/* Strikethrough */
 .wysiwyg-editor :deep(del) {
   text-decoration: line-through;
 }
 
-/* Subscript and superscript */
 .wysiwyg-editor :deep(sub) {
   vertical-align: sub;
   font-size: smaller;
@@ -656,6 +1141,52 @@ onMounted(() => {
 .wysiwyg-editor :deep(sup) {
   vertical-align: super;
   font-size: smaller;
+}
+
+/* Image resize container */
+.image-resize-container {
+  position: absolute;
+  pointer-events: none;
+  z-index: 10;
+}
+
+.resize-handle {
+  position: absolute;
+  width: 10px;
+  height: 10px;
+  background: var(--accent-primary);
+  border: 1px solid white;
+  border-radius: 2px;
+  pointer-events: auto;
+  z-index: 11;
+}
+
+.resize-handle.nw { top: -5px; left: -5px; cursor: nw-resize; }
+.resize-handle.n { top: -5px; left: 50%; transform: translateX(-50%); cursor: n-resize; }
+.resize-handle.ne { top: -5px; right: -5px; cursor: ne-resize; }
+.resize-handle.w { top: 50%; left: -5px; transform: translateY(-50%); cursor: w-resize; }
+.resize-handle.e { top: 50%; right: -5px; transform: translateY(-50%); cursor: e-resize; }
+.resize-handle.sw { bottom: -5px; left: -5px; cursor: sw-resize; }
+.resize-handle.s { bottom: -5px; left: 50%; transform: translateX(-50%); cursor: s-resize; }
+.resize-handle.se { bottom: -5px; right: -5px; cursor: se-resize; }
+
+/* Image source hint */
+.image-source-hint {
+  position: absolute;
+  bottom: calc(100% + 8px);
+  left: 0;
+  max-width: 100%;
+  padding: 4px 8px;
+  font-size: 11px;
+  font-family: var(--font-mono);
+  color: var(--text-tertiary);
+  background: var(--bg-secondary);
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-sm);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  pointer-events: none;
 }
 
 /* Upload indicator */
