@@ -79,12 +79,7 @@ function handleClickOutside(event: MouseEvent) {
     <div class="toolbar-divider"></div>
 
     <div class="toolbar-group">
-      <ColorPicker
-        :is-open="activeDropdown === 'color'"
-        @toggle="toggleDropdown('color')"
-        @command="executeCommand"
-        @close="closeDropdowns"
-      />
+      <ColorPicker @command="executeCommand" />
     </div>
   </div>
 </template>

@@ -1,8 +1,12 @@
 <script setup lang="ts">
-import { ref, onMounted, onUnmounted } from 'vue'
+import { ref, onMounted, onUnmounted, watch, computed } from 'vue'
 import { useEditorStore } from '@/stores/editor'
+import { useDocumentStore } from '@/stores/document'
 import Editor from '@/components/Editor/Editor.vue'
 import Toolbar from '@/components/Toolbar/Toolbar.vue'
+import FileTree from '@/components/Sidebar/FileTree.vue'
+import Outline from '@/components/Sidebar/Outline.vue'
+import UserList from '@/components/Collaboration/UserList.vue'
 import type { EditorMode } from '@/types'
 import {
   markdownWrappers,
@@ -11,9 +15,24 @@ import {
   getInsertTemplate,
   getColorWrapper
 } from '@/utils/shortcuts'
+import { useCollaboration } from '@/composables/useCollaboration'
 
 const editorStore = useEditorStore()
+const documentStore = useDocumentStore()
 const editorRef = ref<InstanceType<typeof Editor> | null>(null)
+
+// Sidebar state
+const showSidebar = ref(true)
+const sidebarTab = ref<'files' | 'outline' | 'collab'>('files')
+
+// Collaboration - initialize with a default room, will update when document changes
+const currentDocId = computed(() => documentStore.currentDocument?.id || 'default')
+const collaboration = useCollaboration(currentDocId.value)
+
+// Connect to collaboration on mount
+onMounted(() => {
+  collaboration.connect()
+})
 
 // Mode switching
 function setMode(mode: EditorMode) {
@@ -25,7 +44,12 @@ const modeLabels: Record<EditorMode, string> = {
   source: '源码',
   preview: '预览',
   split: '分屏',
-  wysiwyg: 'WYSIWYG'
+  wysiwyg: '所见即所得'
+}
+
+// Toggle sidebar
+function toggleSidebar() {
+  showSidebar.value = !showSidebar.value
 }
 
 // Handle toolbar commands
@@ -100,19 +124,46 @@ function handleGlobalKeydown(event: KeyboardEvent) {
   // Ctrl+/ : Toggle mode
   if (ctrl && event.key === '/') {
     event.preventDefault()
-    const modes: EditorMode[] = ['source', 'split', 'preview']
+    const modes: EditorMode[] = ['source', 'split', 'preview', 'wysiwyg']
     const currentIndex = modes.indexOf(editorStore.mode)
     const nextIndex = (currentIndex + 1) % modes.length
     setMode(modes[nextIndex])
   }
 
-  // Ctrl+S : Save (placeholder)
+  // Ctrl+S : Save
   if (ctrl && event.key === 's') {
     event.preventDefault()
-    // TODO: Implement save functionality
-    console.log('Save triggered')
+    saveDocument()
+  }
+
+  // Ctrl+B : Toggle sidebar
+  if (ctrl && event.key === 'b') {
+    event.preventDefault()
+    toggleSidebar()
   }
 }
+
+// Save current document
+async function saveDocument() {
+  const doc = documentStore.currentDocument
+  if (doc) {
+    editorStore.setSaving(true)
+    await documentStore.updateDocument(doc.id, { content: editorStore.content })
+    editorStore.markSaved()
+    editorStore.setSaving(false)
+  }
+}
+
+// Auto-save
+let autoSaveTimer: ReturnType<typeof setTimeout> | null = null
+watch(() => editorStore.content, () => {
+  if (autoSaveTimer) clearTimeout(autoSaveTimer)
+  autoSaveTimer = setTimeout(() => {
+    if (editorStore.isDirty && documentStore.currentDocument) {
+      saveDocument()
+    }
+  }, 3000)
+})
 
 onMounted(() => {
   window.addEventListener('keydown', handleGlobalKeydown)
@@ -120,6 +171,7 @@ onMounted(() => {
 
 onUnmounted(() => {
   window.removeEventListener('keydown', handleGlobalKeydown)
+  if (autoSaveTimer) clearTimeout(autoSaveTimer)
 })
 </script>
 
@@ -127,12 +179,17 @@ onUnmounted(() => {
   <div id="app-container">
     <header class="app-header">
       <div class="header-left">
+        <button class="sidebar-toggle" title="切换侧边栏 (Ctrl+B)" @click="toggleSidebar">
+          <svg viewBox="0 0 24 24" width="20" height="20">
+            <path fill="currentColor" d="M3 18h18v-2H3v2zm0-5h18v-2H3v2zm0-7v2h18V6H3z"/>
+          </svg>
+        </button>
         <div class="logo">SimpleTextEditor</div>
       </div>
       <div class="header-center">
         <div class="mode-switcher">
           <button
-            v-for="mode in (['source', 'preview', 'split'] as EditorMode[])"
+            v-for="mode in (['source', 'preview', 'split', 'wysiwyg'] as EditorMode[])"
             :key="mode"
             class="mode-btn"
             :class="{ active: editorStore.mode === mode }"
@@ -146,17 +203,73 @@ onUnmounted(() => {
         <span class="save-status" :class="{ saving: editorStore.isSaving, dirty: editorStore.isDirty }">
           {{ editorStore.isSaving ? '保存中...' : editorStore.isDirty ? '未保存' : '已保存' }}
         </span>
+        <div class="collab-indicator" :class="{ connected: collaboration.connected.value }">
+          <span class="collab-dot"></span>
+          <span>{{ collaboration.users.value.length + 1 }} 人在线</span>
+        </div>
       </div>
     </header>
 
     <Toolbar @command="handleCommand" />
 
-    <main class="app-main">
-      <Editor ref="editorRef" />
-    </main>
+    <div class="app-body">
+      <!-- Sidebar -->
+      <aside v-if="showSidebar" class="sidebar">
+        <div class="sidebar-tabs">
+          <button
+            class="sidebar-tab"
+            :class="{ active: sidebarTab === 'files' }"
+            title="文件"
+            @click="sidebarTab = 'files'"
+          >
+            <svg viewBox="0 0 24 24" width="18" height="18">
+              <path fill="currentColor" d="M10 4H4c-1.1 0-1.99.9-1.99 2L2 18c0 1.1.9 2 2 2h16c1.1 0 2-.9 2-2V8c0-1.1-.9-2-2-2h-8l-2-2z"/>
+            </svg>
+          </button>
+          <button
+            class="sidebar-tab"
+            :class="{ active: sidebarTab === 'outline' }"
+            title="大纲"
+            @click="sidebarTab = 'outline'"
+          >
+            <svg viewBox="0 0 24 24" width="18" height="18">
+              <path fill="currentColor" d="M3 13h2v-2H3v2zm0 4h2v-2H3v2zm0-8h2V7H3v2zm4 4h14v-2H7v2zm0 4h14v-2H7v2zM7 7v2h14V7H7z"/>
+            </svg>
+          </button>
+          <button
+            class="sidebar-tab"
+            :class="{ active: sidebarTab === 'collab' }"
+            title="协作"
+            @click="sidebarTab = 'collab'"
+          >
+            <svg viewBox="0 0 24 24" width="18" height="18">
+              <path fill="currentColor" d="M16 11c1.66 0 2.99-1.34 2.99-3S17.66 5 16 5c-1.66 0-3 1.34-3 3s1.34 3 3 3zm-8 0c1.66 0 2.99-1.34 2.99-3S9.66 5 8 5C6.34 5 5 6.34 5 8s1.34 3 3 3zm0 2c-2.33 0-7 1.17-7 3.5V19h14v-2.5c0-2.33-4.67-3.5-7-3.5zm8 0c-.29 0-.62.02-.97.05 1.16.84 1.97 1.97 1.97 3.45V19h6v-2.5c0-2.33-4.67-3.5-7-3.5z"/>
+            </svg>
+          </button>
+        </div>
+        <div class="sidebar-content">
+          <FileTree v-if="sidebarTab === 'files'" />
+          <Outline v-else-if="sidebarTab === 'outline'" />
+          <UserList
+            v-else-if="sidebarTab === 'collab'"
+            :users="collaboration.users.value"
+            :current-user="collaboration.currentUser.value"
+            :connected="collaboration.connected.value"
+          />
+        </div>
+      </aside>
+
+      <main class="app-main">
+        <Editor ref="editorRef" />
+      </main>
+    </div>
 
     <footer class="app-footer">
       <div class="status-bar">
+        <span class="status-item doc-title">
+          {{ documentStore.currentDocument?.title || '未选择文档' }}
+        </span>
+        <span class="status-divider">|</span>
         <span class="status-item">
           行 {{ editorStore.cursorLine }}, 列 {{ editorStore.cursorColumn }}
         </span>
@@ -201,6 +314,7 @@ onUnmounted(() => {
   flex: 1;
   display: flex;
   align-items: center;
+  gap: 12px;
 }
 
 .header-right {
@@ -210,6 +324,17 @@ onUnmounted(() => {
 .header-center {
   display: flex;
   justify-content: center;
+}
+
+.sidebar-toggle {
+  padding: 6px;
+  color: var(--text-secondary);
+  border-radius: var(--radius-sm);
+}
+
+.sidebar-toggle:hover {
+  background: var(--bg-hover);
+  color: var(--text-primary);
 }
 
 .logo {
@@ -226,7 +351,7 @@ onUnmounted(() => {
 }
 
 .mode-btn {
-  padding: 6px 16px;
+  padding: 6px 12px;
   font-size: 13px;
   color: var(--text-secondary);
   border-radius: var(--radius-sm);
@@ -258,6 +383,71 @@ onUnmounted(() => {
   color: var(--accent-primary);
 }
 
+.collab-indicator {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 12px;
+  color: var(--text-secondary);
+  padding: 4px 8px;
+  border-radius: var(--radius-sm);
+  background: var(--bg-tertiary);
+}
+
+.collab-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--accent-error);
+}
+
+.collab-indicator.connected .collab-dot {
+  background: var(--accent-secondary);
+}
+
+.app-body {
+  display: flex;
+  flex: 1;
+  overflow: hidden;
+}
+
+.sidebar {
+  display: flex;
+  width: 280px;
+  background: var(--bg-secondary);
+  border-right: 1px solid var(--border-color);
+  flex-shrink: 0;
+}
+
+.sidebar-tabs {
+  display: flex;
+  flex-direction: column;
+  padding: 8px;
+  gap: 4px;
+  border-right: 1px solid var(--border-color);
+}
+
+.sidebar-tab {
+  padding: 8px;
+  color: var(--text-secondary);
+  border-radius: var(--radius-sm);
+}
+
+.sidebar-tab:hover {
+  background: var(--bg-hover);
+  color: var(--text-primary);
+}
+
+.sidebar-tab.active {
+  background: var(--bg-active);
+  color: var(--accent-primary);
+}
+
+.sidebar-content {
+  flex: 1;
+  overflow: hidden;
+}
+
 .app-main {
   display: flex;
   flex: 1;
@@ -281,6 +471,12 @@ onUnmounted(() => {
 
 .status-item {
   white-space: nowrap;
+}
+
+.status-item.doc-title {
+  max-width: 200px;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
 .status-divider {

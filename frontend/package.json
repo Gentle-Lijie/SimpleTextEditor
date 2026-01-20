@@ -29,7 +29,9 @@
     "yjs": "^13.6.14",
     "y-websocket": "^1.5.4",
     "dompurify": "^3.0.8",
-    "socket.io-client": "^4.7.4"
+    "socket.io-client": "^4.7.4",
+    "turndown": "^7.1.2",
+    "turndown-plugin-gfm": "^1.0.2"
   },
   "devDependencies": {
     "@vitejs/plugin-vue": "^5.0.4",
@@ -38,6 +40,7 @@
     "vue-tsc": "^2.0.6",
     "@types/markdown-it": "^13.0.7",
     "@types/dompurify": "^3.0.5",
-    "@types/katex": "^0.16.7"
+    "@types/katex": "^0.16.7",
+    "@types/turndown": "^5.0.4"
   }
 }

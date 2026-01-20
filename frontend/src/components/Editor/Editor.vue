@@ -3,6 +3,7 @@ import { computed, ref } from 'vue'
 import { useEditorStore } from '@/stores/editor'
 import SourceEditor from './SourceEditor.vue'
 import Preview from './Preview.vue'
+import WYSIWYGEditor from './WYSIWYGEditor.vue'
 
 const editorStore = useEditorStore()
 const sourceEditorRef = ref<InstanceType<typeof SourceEditor> | null>(null)
@@ -15,6 +16,10 @@ const showPreview = computed(() =>
   editorStore.mode === 'preview' || editorStore.mode === 'split'
 )
 
+const showWYSIWYG = computed(() =>
+  editorStore.mode === 'wysiwyg'
+)
+
 // Expose source editor ref for toolbar operations
 defineExpose({
   getSourceEditor: () => sourceEditorRef.value
@@ -23,12 +28,20 @@ defineExpose({
 
 <template>
   <div class="editor" :class="[`mode-${editorStore.mode}`]">
-    <div v-if="showSource" class="editor-pane source-pane">
-      <SourceEditor ref="sourceEditorRef" />
-    </div>
-    <div v-if="editorStore.mode === 'split'" class="editor-divider"></div>
-    <div v-if="showPreview" class="editor-pane preview-pane">
-      <Preview />
+    <!-- Source/Split/Preview modes -->
+    <template v-if="!showWYSIWYG">
+      <div v-if="showSource" class="editor-pane source-pane">
+        <SourceEditor ref="sourceEditorRef" />
+      </div>
+      <div v-if="editorStore.mode === 'split'" class="editor-divider"></div>
+      <div v-if="showPreview" class="editor-pane preview-pane">
+        <Preview />
+      </div>
+    </template>
+
+    <!-- WYSIWYG mode -->
+    <div v-else class="editor-pane wysiwyg-pane">
+      <WYSIWYGEditor />
     </div>
   </div>
 </template>
@@ -65,12 +78,7 @@ defineExpose({
   flex-shrink: 0;
 }
 
-/* WYSIWYG mode will be implemented later */
-.mode-wysiwyg .source-pane {
-  display: none;
-}
-
-.mode-wysiwyg .preview-pane {
+.mode-wysiwyg .wysiwyg-pane {
   flex: 1;
 }
 </style>

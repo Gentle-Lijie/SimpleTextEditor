@@ -8,12 +8,28 @@ const __dirname = dirname(fileURLToPath(import.meta.url))
 let pool: mysql.Pool | null = null
 
 export async function initDatabase(): Promise<mysql.Pool> {
+  const dbName = process.env.DB_NAME || 'simpletexteditor'
+
+  // First, connect without database to create it if not exists
+  const initConnection = await mysql.createConnection({
+    host: process.env.DB_HOST || 'localhost',
+    port: parseInt(process.env.DB_PORT || '3306'),
+    user: process.env.DB_USER || 'root',
+    password: process.env.DB_PASSWORD || ''
+  })
+
+  // Create database if not exists
+  await initConnection.execute(`CREATE DATABASE IF NOT EXISTS \`${dbName}\` CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci`)
+  console.log(`Database '${dbName}' ready`)
+  await initConnection.end()
+
+  // Now create pool with the database
   pool = mysql.createPool({
     host: process.env.DB_HOST || 'localhost',
     port: parseInt(process.env.DB_PORT || '3306'),
     user: process.env.DB_USER || 'root',
     password: process.env.DB_PASSWORD || '',
-    database: process.env.DB_NAME || 'simpletexteditor',
+    database: dbName,
     waitForConnections: true,
     connectionLimit: 10,
     queueLimit: 0

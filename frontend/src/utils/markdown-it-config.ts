@@ -5,7 +5,7 @@ import taskLists from 'markdown-it-task-lists'
 // @ts-expect-error - no type definitions available
 import footnote from 'markdown-it-footnote'
 // @ts-expect-error - no type definitions available
-import emoji from 'markdown-it-emoji'
+import { full as emoji } from 'markdown-it-emoji'
 // @ts-expect-error - no type definitions available
 import sub from 'markdown-it-sub'
 // @ts-expect-error - no type definitions available
