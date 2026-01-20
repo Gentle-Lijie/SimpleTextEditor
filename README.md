@@ -46,7 +46,7 @@ cd SimpleTextEditor
 2. 配置环境变量
 ```bash
 cp .env.example .env
-# 编辑 .env 文件，填入 GitHub Token（用于图床）
+# 编辑 .env 文件，至少填入访问密码（PASSWORD）和 GitHub Token（用于图床）
 ```
 
 3. 启动服务
@@ -119,6 +119,7 @@ SimpleTextEditor/
 | `GITHUB_OWNER` | GitHub 用户名 | Gentle-Lijie |
 | `GITHUB_REPO` | GitHub 仓库名 | SimpleTextEditor |
 | `GITHUB_BRANCH` | 图床分支 | images |
+| `PASSWORD` | 访问密码（进入页面必填） | - |
 | `VITE_API_URL` | 前端 API 地址 | http://localhost:3001 |
 | `VITE_WS_URL` | WebSocket 地址 | ws://localhost:3001 |
 | `VITE_AUTO_SAVE_DELAY` | 自动保存延迟(毫秒) | 3000 |
