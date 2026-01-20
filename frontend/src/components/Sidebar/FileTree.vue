@@ -33,7 +33,7 @@ function cancelCreate() {
   newDocTitle.value = ''
 }
 
-async function selectDocument(doc: typeof documentStore.documents.value[0]) {
+async function selectDocument(doc: typeof documentStore.documents[0]) {
   const fullDoc = await documentStore.fetchDocument(doc.id)
   if (fullDoc) {
     editorStore.setContent(fullDoc.content)
@@ -41,7 +41,7 @@ async function selectDocument(doc: typeof documentStore.documents.value[0]) {
   }
 }
 
-function startRename(doc: typeof documentStore.documents.value[0]) {
+function startRename(doc: typeof documentStore.documents[0]) {
   renamingId.value = doc.id
   renameTitle.value = doc.title
 }
