@@ -6,11 +6,13 @@ import DOMPurify from 'dompurify'
 import TurndownService from 'turndown'
 // @ts-expect-error - no type definitions
 import { gfm } from 'turndown-plugin-gfm'
+import { uploadImageFromClipboard, hasImageInClipboard, generateImageMarkdown } from '@/utils/imageUpload'
 
 const editorStore = useEditorStore()
 const editorElement = ref<HTMLDivElement | null>(null)
 const isComposing = ref(false)
 const lastSavedSelection = ref<{ start: number; end: number } | null>(null)
+const isUploading = ref(false)
 
 // Get collaboration from parent
 const collaboration = inject<any>('collaboration')
@@ -365,8 +367,49 @@ function handleKeydown(event: KeyboardEvent) {
   }
 }
 
-// Handle paste - prefer plain text
-function handlePaste(event: ClipboardEvent) {
+// Handle paste - check for images first, then plain text
+async function handlePaste(event: ClipboardEvent) {
+  if (!event.clipboardData) return
+
+  // Check if clipboard has image
+  if (hasImageInClipboard(event.clipboardData)) {
+    event.preventDefault()
+    isUploading.value = true
+
+    try {
+      const result = await uploadImageFromClipboard(event.clipboardData)
+      if (result && result.success && result.url) {
+        // Insert image
+        const img = document.createElement('img')
+        img.src = result.url
+        img.alt = 'image'
+
+        const selection = window.getSelection()
+        if (selection && selection.rangeCount > 0) {
+          const range = selection.getRangeAt(0)
+          range.deleteContents()
+          range.insertNode(img)
+          range.setStartAfter(img)
+          range.collapse(true)
+          selection.removeAllRanges()
+          selection.addRange(range)
+        }
+
+        handleInput()
+      } else {
+        console.error('Image upload failed:', result?.error)
+        alert('图片上传失败: ' + (result?.error || '未知错误'))
+      }
+    } catch (error) {
+      console.error('Image upload error:', error)
+      alert('图片上传出错')
+    } finally {
+      isUploading.value = false
+    }
+    return
+  }
+
+  // Plain text paste
   event.preventDefault()
   const text = event.clipboardData?.getData('text/plain') || ''
   document.execCommand('insertText', false, text)
@@ -447,6 +490,12 @@ onMounted(() => {
       @paste="handlePaste"
       @click="handleClick"
     />
+
+    <!-- Upload indicator -->
+    <div v-if="isUploading" class="upload-indicator">
+      <span class="upload-spinner"></span>
+      <span>上传图片中...</span>
+    </div>
   </div>
 </template>
 
@@ -454,6 +503,7 @@ onMounted(() => {
 .wysiwyg-editor-container {
   height: 100%;
   overflow: hidden;
+  position: relative;
 }
 
 .wysiwyg-editor {
@@ -606,5 +656,35 @@ onMounted(() => {
 .wysiwyg-editor :deep(sup) {
   vertical-align: super;
   font-size: smaller;
+}
+
+/* Upload indicator */
+.upload-indicator {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 12px 20px;
+  background: var(--bg-secondary);
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-md);
+  box-shadow: var(--shadow-lg);
+  z-index: 20;
+}
+
+.upload-spinner {
+  width: 16px;
+  height: 16px;
+  border: 2px solid var(--border-color);
+  border-top-color: var(--accent-primary);
+  border-radius: 50%;
+  animation: spin 0.8s linear infinite;
+}
+
+@keyframes spin {
+  to { transform: rotate(360deg); }
 }
 </style>

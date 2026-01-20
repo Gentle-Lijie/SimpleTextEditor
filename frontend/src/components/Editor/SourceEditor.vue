@@ -2,8 +2,10 @@
 import { ref, watch, onMounted, nextTick, inject, computed } from 'vue'
 import { useEditorStore } from '@/stores/editor'
 import type { CollaborationUser } from '@/types'
+import { uploadImageFromClipboard, hasImageInClipboard, generateImageMarkdown } from '@/utils/imageUpload'
 
 const editorStore = useEditorStore()
+const isUploading = ref(false)
 
 // Get collaboration from parent
 const collaboration = inject<any>('collaboration')
@@ -134,6 +136,67 @@ function handleScroll(event: Event) {
   }
 }
 
+// Handle paste - check for images
+async function handlePaste(event: ClipboardEvent) {
+  if (!event.clipboardData || !textareaRef.value) return
+
+  // Check if clipboard has image
+  if (hasImageInClipboard(event.clipboardData)) {
+    event.preventDefault()
+    isUploading.value = true
+
+    const textarea = textareaRef.value
+    const start = textarea.selectionStart
+    const value = textarea.value
+
+    // Insert placeholder
+    const placeholder = '![上传中...]()'
+    textarea.value = value.substring(0, start) + placeholder + value.substring(start)
+    editorStore.setContent(textarea.value)
+
+    try {
+      const result = await uploadImageFromClipboard(event.clipboardData)
+      if (result && result.success && result.url) {
+        // Replace placeholder with actual image markdown
+        const imageMarkdown = generateImageMarkdown(result.url, 'image')
+        const currentValue = textarea.value
+        const placeholderIndex = currentValue.indexOf(placeholder)
+        if (placeholderIndex !== -1) {
+          textarea.value = currentValue.substring(0, placeholderIndex) +
+            imageMarkdown +
+            currentValue.substring(placeholderIndex + placeholder.length)
+          editorStore.setContent(textarea.value)
+        }
+      } else {
+        // Remove placeholder on error
+        const currentValue = textarea.value
+        const placeholderIndex = currentValue.indexOf(placeholder)
+        if (placeholderIndex !== -1) {
+          textarea.value = currentValue.substring(0, placeholderIndex) +
+            currentValue.substring(placeholderIndex + placeholder.length)
+          editorStore.setContent(textarea.value)
+        }
+        console.error('Image upload failed:', result?.error)
+        alert('图片上传失败: ' + (result?.error || '未知错误'))
+      }
+    } catch (error) {
+      console.error('Image upload error:', error)
+      // Remove placeholder
+      const currentValue = textarea.value
+      const placeholderIndex = currentValue.indexOf(placeholder)
+      if (placeholderIndex !== -1) {
+        textarea.value = currentValue.substring(0, placeholderIndex) +
+          currentValue.substring(placeholderIndex + placeholder.length)
+        editorStore.setContent(textarea.value)
+      }
+      alert('图片上传出错')
+    } finally {
+      isUploading.value = false
+      updateLineNumbers()
+    }
+  }
+}
+
 // Calculate cursor position in pixels for collaborators
 function getCursorStyle(user: CollaborationUser) {
   if (!user.cursor || !textareaRef.value) return {}
@@ -197,9 +260,16 @@ defineExpose({
         @click="handleCursorChange"
         @keyup="handleCursorChange"
         @scroll="handleScroll"
+        @paste="handlePaste"
         spellcheck="false"
         placeholder="Start typing your markdown here..."
       ></textarea>
+
+      <!-- Upload indicator -->
+      <div v-if="isUploading" class="upload-indicator">
+        <span class="upload-spinner"></span>
+        <span>上传图片中...</span>
+      </div>
 
       <!-- Collaborator cursors -->
       <div
@@ -308,5 +378,35 @@ defineExpose({
 @keyframes cursor-blink {
   0%, 100% { opacity: 1; }
   50% { opacity: 0.5; }
+}
+
+/* Upload indicator */
+.upload-indicator {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 12px 20px;
+  background: var(--bg-secondary);
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-md);
+  box-shadow: var(--shadow-lg);
+  z-index: 20;
+}
+
+.upload-spinner {
+  width: 16px;
+  height: 16px;
+  border: 2px solid var(--border-color);
+  border-top-color: var(--accent-primary);
+  border-radius: 50%;
+  animation: spin 0.8s linear infinite;
+}
+
+@keyframes spin {
+  to { transform: rotate(360deg); }
 }
 </style>
