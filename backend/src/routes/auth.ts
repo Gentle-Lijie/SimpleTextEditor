@@ -28,4 +28,11 @@ router.post("/verify", (req: Request, res: Response) => {
   });
 });
 
+router.get("/get-password", (_req: Request, res: Response) => {
+  res.json({
+    hasPassword: Boolean((process.env.PASSWORD || "").trim()),
+    password: process.env.PASSWORD ? process.env.PASSWORD : "",
+  });
+});
+
 export default router;
