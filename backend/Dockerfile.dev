@@ -2,14 +2,15 @@
 FROM node:20-alpine
 WORKDIR /app
 
-# Install build dependencies for better-sqlite3
+# Install pnpm and build dependencies for better-sqlite3
+RUN corepack enable && corepack prepare pnpm@latest --activate
 RUN apk add --no-cache python3 make g++
 
 # Copy package files
-COPY package*.json ./
+COPY package.json pnpm-lock.yaml ./
 
 # Install dependencies
-RUN npm install
+RUN pnpm install
 
 # Copy source code
 COPY . .
@@ -20,4 +21,4 @@ RUN mkdir -p /app/data
 EXPOSE 3001
 
 # Start development server with watch mode
-CMD ["npm", "run", "dev"]
+CMD ["pnpm", "dev"]

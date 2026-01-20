@@ -2,33 +2,35 @@
 FROM node:20-alpine AS builder
 WORKDIR /app
 
-# Install build dependencies for better-sqlite3
+# Install pnpm and build dependencies for better-sqlite3
+RUN corepack enable && corepack prepare pnpm@latest --activate
 RUN apk add --no-cache python3 make g++
 
 # Copy package files
-COPY package*.json ./
+COPY package.json pnpm-lock.yaml ./
 
 # Install dependencies
-RUN npm ci
+RUN pnpm install --frozen-lockfile
 
 # Copy source code
 COPY . .
 
 # Build TypeScript
-RUN npm run build
+RUN pnpm build
 
 # Production stage
 FROM node:20-alpine
 WORKDIR /app
 
-# Install runtime dependencies for better-sqlite3
+# Install pnpm and runtime dependencies for better-sqlite3
+RUN corepack enable && corepack prepare pnpm@latest --activate
 RUN apk add --no-cache python3 make g++
 
 # Copy package files
-COPY package*.json ./
+COPY package.json pnpm-lock.yaml ./
 
 # Install production dependencies only
-RUN npm ci --only=production
+RUN pnpm install --prod --frozen-lockfile
 
 # Copy built files
 COPY --from=builder /app/dist ./dist

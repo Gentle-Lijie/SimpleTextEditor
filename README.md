@@ -65,14 +65,14 @@ docker-compose -f docker-compose.dev.yml up
 
 ```bash
 # 安装依赖
-cd frontend && npm install
-cd ../backend && npm install
+cd frontend && pnpm install
+cd ../backend && pnpm install
 
 # 启动后端
-cd backend && npm run dev
+cd backend && pnpm dev
 
 # 启动前端（新终端）
-cd frontend && npm run dev
+cd frontend && pnpm dev
 ```
 
 ## 📁 项目结构
