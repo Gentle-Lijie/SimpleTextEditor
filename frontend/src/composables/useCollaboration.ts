@@ -6,6 +6,10 @@ import { useEditorStore } from '@/stores/editor'
 
 const WS_URL = import.meta.env.VITE_WS_URL || 'ws://localhost:3001'
 
+// LocalStorage keys for user info
+const USER_NAME_KEY = 'simpletexteditor-username'
+const USER_COLOR_KEY = 'simpletexteditor-usercolor'
+
 // Random color for user
 function getRandomColor(): string {
   const colors = [
@@ -26,6 +30,24 @@ function getRandomName(): string {
   return adj + noun
 }
 
+// Get saved user name from localStorage or generate new one
+function getSavedUserName(): string {
+  const saved = localStorage.getItem(USER_NAME_KEY)
+  if (saved) return saved
+  const newName = getRandomName()
+  localStorage.setItem(USER_NAME_KEY, newName)
+  return newName
+}
+
+// Get saved user color from localStorage or generate new one
+function getSavedUserColor(): string {
+  const saved = localStorage.getItem(USER_COLOR_KEY)
+  if (saved) return saved
+  const newColor = getRandomColor()
+  localStorage.setItem(USER_COLOR_KEY, newColor)
+  return newColor
+}
+
 export function useCollaboration(documentIdRef: Ref<string> | string) {
   const editorStore = useEditorStore()
 
@@ -37,9 +59,9 @@ export function useCollaboration(documentIdRef: Ref<string> | string) {
 
   const connected = ref(false)
   const users = ref<CollaborationUser[]>([])
-  // Keep user info consistent across document switches
-  const userName = getRandomName()
-  const userColor = getRandomColor()
+  // Keep user info consistent across document switches (persisted in localStorage)
+  const userName = getSavedUserName()
+  const userColor = getSavedUserColor()
   const currentUser = ref<CollaborationUser>({
     id: ydoc.clientID.toString(),
     name: userName,
@@ -239,8 +261,10 @@ export function useCollaboration(documentIdRef: Ref<string> | string) {
   }
 
   // Set user name
+  // Set user name and persist to localStorage
   function setUserName(name: string) {
     currentUser.value.name = name
+    localStorage.setItem(USER_NAME_KEY, name)
     if (provider) {
       provider.awareness.setLocalStateField('user', {
         ...currentUser.value

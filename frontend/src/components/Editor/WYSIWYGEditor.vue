@@ -123,12 +123,23 @@ turndownService.addRule('imageWithSize', {
   }
 })
 
+// Handle centered divs - preserve <div align="center"> in Markdown
+turndownService.addRule('centeredDiv', {
+  filter: (node: HTMLElement): boolean => {
+    return node.nodeName === 'DIV' && node.getAttribute('align') === 'center'
+  },
+  replacement: (content: string) => {
+    // Preserve as HTML in Markdown
+    return `<div align="center">\n\n${content.trim()}\n\n</div>\n\n`
+  }
+})
+
 // Rendered HTML content with markdown source code hints
 const renderedContent = computed(() => {
   const html = renderMarkdown(editorStore.content)
   return DOMPurify.sanitize(html, {
     ADD_TAGS: ['input'],
-    ADD_ATTR: ['checked', 'type', 'disabled', 'style', 'data-md-source', 'data-md-type']
+    ADD_ATTR: ['checked', 'type', 'disabled', 'style', 'data-md-source', 'data-md-type', 'align']
   })
 })
 
@@ -647,37 +658,51 @@ function wrapWithTag(tagName: string) {
   }
 }
 
-// Toggle center alignment
+// Toggle center alignment using <div align="center">
 function toggleCenterAlign() {
   const selection = window.getSelection()
   if (!selection || selection.rangeCount === 0) return
 
-  // Find the block element containing the selection
   const range = selection.getRangeAt(0)
-  let blockElement: HTMLElement | null = range.startContainer as HTMLElement
 
-  // Traverse up to find a block-level element
-  while (blockElement && blockElement !== editorElement.value) {
-    if (blockElement.nodeType === Node.ELEMENT_NODE) {
-      const display = window.getComputedStyle(blockElement).display
-      if (display === 'block' || display === 'list-item') {
+  // Check if already inside a centered div
+  let node: Node | null = range.startContainer
+  let centeredDiv: HTMLElement | null = null
+
+  while (node && node !== editorElement.value) {
+    if (node.nodeType === Node.ELEMENT_NODE) {
+      const el = node as HTMLElement
+      if (el.tagName === 'DIV' && el.getAttribute('align') === 'center') {
+        centeredDiv = el
         break
       }
     }
-    blockElement = blockElement.parentElement
+    node = node.parentNode
   }
 
-  if (blockElement && blockElement !== editorElement.value) {
-    // Toggle center alignment
-    const currentAlign = blockElement.style.textAlign
-    if (currentAlign === 'center') {
-      blockElement.style.textAlign = ''
-    } else {
-      blockElement.style.textAlign = 'center'
+  if (centeredDiv) {
+    // Remove centering - unwrap the div
+    const parent = centeredDiv.parentNode
+    if (parent) {
+      while (centeredDiv.firstChild) {
+        parent.insertBefore(centeredDiv.firstChild, centeredDiv)
+      }
+      parent.removeChild(centeredDiv)
     }
   } else {
-    // If no block element found, use execCommand as fallback
-    document.execCommand('justifyCenter', false)
+    // Wrap selection in centered div
+    const contents = range.extractContents()
+    const div = document.createElement('div')
+    div.setAttribute('align', 'center')
+    div.appendChild(contents)
+    range.insertNode(div)
+
+    // Move cursor after the div
+    const newRange = document.createRange()
+    newRange.setStartAfter(div)
+    newRange.collapse(true)
+    selection.removeAllRanges()
+    selection.addRange(newRange)
   }
 }
 

@@ -108,6 +108,56 @@ function handleKeyDown(event: KeyboardEvent) {
     textarea.value = `${before}[${selectedText}](url)${after}`
     editorStore.setContent(textarea.value)
   }
+
+  // Ctrl/Cmd + E: Center (toggle <div align="center">)
+  if ((event.ctrlKey || event.metaKey) && event.key === 'e') {
+    event.preventDefault()
+    toggleCenterAlign()
+  }
+}
+
+// Toggle center alignment with <div align="center">
+function toggleCenterAlign() {
+  const textarea = textareaRef.value
+  if (!textarea) return
+
+  const start = textarea.selectionStart
+  const end = textarea.selectionEnd
+  const value = textarea.value
+
+  // Find the line(s) containing the selection
+  const lineStart = value.lastIndexOf('\n', start - 1) + 1
+  let lineEnd = value.indexOf('\n', end)
+  if (lineEnd === -1) lineEnd = value.length
+
+  const selectedLines = value.substring(lineStart, lineEnd)
+
+  // Check if already centered
+  const centerStartMatch = value.substring(0, lineStart).match(/<div align="center">\s*\n?$/)
+  const centerEndMatch = value.substring(lineEnd).match(/^\s*\n?<\/div>/)
+
+  if (centerStartMatch && centerEndMatch) {
+    // Remove centering
+    const beforeCenter = value.substring(0, lineStart - centerStartMatch[0].length)
+    const afterCenter = value.substring(lineEnd + centerEndMatch[0].length)
+    textarea.value = beforeCenter + selectedLines + afterCenter
+    editorStore.setContent(textarea.value)
+    // Adjust cursor position
+    const newStart = start - centerStartMatch[0].length
+    textarea.selectionStart = Math.max(0, newStart)
+    textarea.selectionEnd = Math.max(0, newStart + (end - start))
+  } else {
+    // Add centering
+    const before = value.substring(0, lineStart)
+    const after = value.substring(lineEnd)
+    textarea.value = `${before}<div align="center">\n\n${selectedLines}\n\n</div>${after}`
+    editorStore.setContent(textarea.value)
+    // Position cursor inside the centered area
+    const newStart = lineStart + '<div align="center">\n\n'.length
+    textarea.selectionStart = newStart
+    textarea.selectionEnd = newStart + selectedLines.length
+  }
+  textarea.focus()
 }
 
 // Wrap selected text with markers

@@ -7,6 +7,7 @@ import Toolbar from '@/components/Toolbar/Toolbar.vue'
 import FileTree from '@/components/Sidebar/FileTree.vue'
 import Outline from '@/components/Sidebar/Outline.vue'
 import UserList from '@/components/Collaboration/UserList.vue'
+import WindowTakeoverOverlay from '@/components/Collaboration/WindowTakeoverOverlay.vue'
 import type { EditorMode } from '@/types'
 import {
   markdownWrappers,
@@ -16,10 +17,14 @@ import {
   getColorWrapper
 } from '@/utils/shortcuts'
 import { useCollaboration } from '@/composables/useCollaboration'
+import { useWindowManager } from '@/composables/useWindowManager'
 
 const editorStore = useEditorStore()
 const documentStore = useDocumentStore()
 const editorRef = ref<InstanceType<typeof Editor> | null>(null)
+
+// Window manager for single-window enforcement
+const windowManager = useWindowManager()
 
 // Auto-save delay from env (default 3000ms)
 const AUTO_SAVE_DELAY = parseInt(import.meta.env.VITE_AUTO_SAVE_DELAY || '3000')
@@ -34,6 +39,15 @@ const collaboration = useCollaboration(currentDocId)
 
 // Provide collaboration for child components
 provide('collaboration', collaboration)
+
+// Watch for window takeover - disconnect collaboration when taken over
+watch(() => windowManager.isActive.value, (isActive) => {
+  if (!isActive) {
+    collaboration.disconnect()
+  } else {
+    collaboration.connect()
+  }
+})
 
 // Connect to collaboration on mount
 onMounted(() => {
@@ -343,6 +357,7 @@ onUnmounted(() => {
             :users="collaboration.users.value"
             :current-user="collaboration.currentUser.value"
             :connected="collaboration.connected.value"
+            @update:user-name="collaboration.setUserName"
           />
         </div>
       </aside>
@@ -375,6 +390,12 @@ onUnmounted(() => {
         </span>
       </div>
     </footer>
+
+    <!-- Window takeover overlay -->
+    <WindowTakeoverOverlay
+      :show="!windowManager.isActive.value"
+      @reclaim="windowManager.reclaim"
+    />
   </div>
 </template>
 
@@ -418,6 +439,9 @@ onUnmounted(() => {
   padding: 6px;
   color: var(--text-secondary);
   border-radius: var(--radius-sm);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
 }
 
 .sidebar-toggle:hover {
@@ -459,7 +483,9 @@ onUnmounted(() => {
 .save-btn {
   padding: 6px;
   color: var(--text-secondary);
-  border-radius: var(--radius-sm);
+  border-radius: var(--radius-sm);display: inline-flex;
+  align-items: center;
+  justify-content: center;
 }
 
 .save-btn:hover {
@@ -535,6 +561,9 @@ onUnmounted(() => {
   padding: 8px;
   color: var(--text-secondary);
   border-radius: var(--radius-sm);
+    display: inline-flex;
+  align-items: center;
+  justify-content: center;
 }
 
 .sidebar-tab:hover {
