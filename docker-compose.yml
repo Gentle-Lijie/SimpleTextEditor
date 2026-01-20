@@ -7,8 +7,8 @@ services:
       context: ./frontend
       dockerfile: Dockerfile
       args:
-        - VITE_API_URL=http://editor.lijie.space
-        - VITE_WS_URL=ws://editor.lijie.space
+        - VITE_API_URL=https://editor.lijie.space
+        - VITE_WS_URL=wss://editor.lijie.space
     cpus: 1.0
     mem_limit: 1024m
     deploy:
