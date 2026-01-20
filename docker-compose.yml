@@ -20,17 +20,16 @@ services:
       dockerfile: Dockerfile
     ports:
       - "3001:3001"
-    volumes:
-      - ./data:/app/data
     environment:
       - NODE_ENV=production
       - PORT=3001
-      - DATABASE_PATH=/app/data/sqlite.db
+      - DB_HOST=${DB_HOST}
+      - DB_PORT=${DB_PORT:-3306}
+      - DB_USER=${DB_USER}
+      - DB_PASSWORD=${DB_PASSWORD}
+      - DB_NAME=${DB_NAME:-simpletexteditor}
       - GITHUB_TOKEN=${GITHUB_TOKEN}
       - GITHUB_OWNER=${GITHUB_OWNER:-Gentle-Lijie}
       - GITHUB_REPO=${GITHUB_REPO:-SimpleTextEditor}
       - GITHUB_BRANCH=${GITHUB_BRANCH:-images}
     restart: unless-stopped
-
-volumes:
-  data:
