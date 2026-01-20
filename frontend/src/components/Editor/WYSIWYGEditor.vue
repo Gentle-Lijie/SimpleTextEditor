@@ -548,6 +548,9 @@ function handleToolbarCommand(command: string, value?: string) {
     case 'horizontalRule':
       document.execCommand('insertHorizontalRule', false)
       break
+    case 'center':
+      toggleCenterAlign()
+      break
   }
 
   handleInput()
@@ -644,6 +647,40 @@ function wrapWithTag(tagName: string) {
   }
 }
 
+// Toggle center alignment
+function toggleCenterAlign() {
+  const selection = window.getSelection()
+  if (!selection || selection.rangeCount === 0) return
+
+  // Find the block element containing the selection
+  const range = selection.getRangeAt(0)
+  let blockElement: HTMLElement | null = range.startContainer as HTMLElement
+
+  // Traverse up to find a block-level element
+  while (blockElement && blockElement !== editorElement.value) {
+    if (blockElement.nodeType === Node.ELEMENT_NODE) {
+      const display = window.getComputedStyle(blockElement).display
+      if (display === 'block' || display === 'list-item') {
+        break
+      }
+    }
+    blockElement = blockElement.parentElement
+  }
+
+  if (blockElement && blockElement !== editorElement.value) {
+    // Toggle center alignment
+    const currentAlign = blockElement.style.textAlign
+    if (currentAlign === 'center') {
+      blockElement.style.textAlign = ''
+    } else {
+      blockElement.style.textAlign = 'center'
+    }
+  } else {
+    // If no block element found, use execCommand as fallback
+    document.execCommand('justifyCenter', false)
+  }
+}
+
 // Handle keyboard shortcuts
 function handleKeydown(event: KeyboardEvent) {
   const ctrl = event.ctrlKey || event.metaKey
@@ -665,6 +702,14 @@ function handleKeydown(event: KeyboardEvent) {
   if (ctrl && event.key === 'u') {
     event.preventDefault()
     document.execCommand('underline', false)
+    handleInput()
+    return
+  }
+
+  // Cmd/Ctrl+E: Toggle center alignment
+  if (ctrl && event.key === 'e') {
+    event.preventDefault()
+    toggleCenterAlign()
     handleInput()
     return
   }

@@ -112,6 +112,9 @@ export function useCollaboration(documentIdRef: Ref<string> | string) {
     // Update current user with new client ID
     currentUser.value.id = ydoc.clientID.toString()
 
+    // Track if initial sync is done to prevent duplicate content
+    let initialSyncDone = false
+
     provider = new WebsocketProvider(
       WS_URL,
       `doc-${targetDocId}`,
@@ -119,22 +122,33 @@ export function useCollaboration(documentIdRef: Ref<string> | string) {
       { connect: true }
     )
 
-    // Handle connection status
-    provider.on('status', (event: { status: string }) => {
-      connected.value = event.status === 'connected'
+    // Handle sync event - this fires when initial data is received from server
+    provider.on('sync', (isSynced: boolean) => {
+      if (isSynced && !initialSyncDone) {
+        initialSyncDone = true
 
-      // When connected, sync initial content
-      if (event.status === 'connected') {
-        // If Y.Text has content, use it; otherwise init from store
+        // After sync, decide content source:
+        // - If Y.Text has content from server, use it (collaborative truth)
+        // - If Y.Text is empty but store has content, sync store to Y.Text
         const ytextContent = ytext.toString()
         if (ytextContent) {
+          // Server has content, use it
           isUpdatingFromYjs = true
           editorStore.setContent(ytextContent)
           isUpdatingFromYjs = false
         } else if (editorStore.content) {
+          // Server is empty, initialize from store
           syncStoreToYText()
         }
+
+        // Only start watching store changes AFTER initial sync
+        setupStoreWatch()
       }
+    })
+
+    // Handle connection status
+    provider.on('status', (event: { status: string }) => {
+      connected.value = event.status === 'connected'
     })
 
     // Listen to Y.Text changes
@@ -166,9 +180,6 @@ export function useCollaboration(documentIdRef: Ref<string> | string) {
 
       users.value = userList
     })
-
-    // Setup store watch after connection
-    setupStoreWatch()
   }
 
   // Internal disconnect (without destroying everything)
