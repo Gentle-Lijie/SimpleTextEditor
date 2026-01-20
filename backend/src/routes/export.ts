@@ -44,13 +44,13 @@ router.post('/export', async (req: Request, res: Response) => {
       inputPath
     ]
 
-    // Add PDF-specific options
+    // Add PDF-specific options (use wkhtmltopdf via HTML)
     if (format === 'pdf') {
       pandocArgs = [
         '-f', 'markdown',
-        '--pdf-engine=xelatex',
-        '-V', 'mainfont=Noto Sans CJK SC',
-        '-V', 'geometry:margin=1in',
+        '-t', 'html5',
+        '--pdf-engine=wkhtmltopdf',
+        '--pdf-engine-opt=--enable-local-file-access',
         '-o', outputPath,
         inputPath
       ]

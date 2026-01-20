@@ -21,12 +21,10 @@ RUN pnpm build
 FROM node:20-alpine
 WORKDIR /app
 
-# Install pandoc and dependencies for PDF export
+# Install pandoc and wkhtmltopdf for document conversion
 RUN apk add --no-cache \
     pandoc \
-    texlive \
-    texlive-xetex \
-    texmf-dist-langchinese \
+    wkhtmltopdf \
     font-noto-cjk \
     && rm -rf /var/cache/apk/*
 
