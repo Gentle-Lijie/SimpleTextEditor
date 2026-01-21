@@ -1,5 +1,7 @@
 <script setup lang="ts">
-defineProps<{
+import { ref, computed, watch } from 'vue'
+
+const props = defineProps<{
   isOpen: boolean
 }>()
 
@@ -8,6 +10,24 @@ const emit = defineEmits<{
   (e: 'command', command: string, value?: string): void
   (e: 'close'): void
 }>()
+
+const triggerRef = ref<HTMLElement | null>(null)
+const menuPosition = ref({ top: 0, left: 0 })
+
+watch(() => props.isOpen, (open) => {
+  if (open && triggerRef.value) {
+    const rect = triggerRef.value.getBoundingClientRect()
+    menuPosition.value = {
+      top: rect.bottom + 4,
+      left: rect.left
+    }
+  }
+})
+
+const menuStyle = computed(() => ({
+  top: `${menuPosition.value.top}px`,
+  left: `${menuPosition.value.left}px`
+}))
 
 interface HeadingOption {
   level: number
@@ -32,21 +52,23 @@ function selectHeading(level: number) {
 
 <template>
   <div class="toolbar-dropdown">
-    <button class="toolbar-btn dropdown-trigger" title="标题" @click="emit('toggle')">
+    <button ref="triggerRef" class="toolbar-btn dropdown-trigger" title="标题" @click="emit('toggle')">
       H
       <span class="dropdown-arrow">▾</span>
     </button>
-    <div v-if="isOpen" class="dropdown-menu">
-      <button
-        v-for="h in headings"
-        :key="h.level"
-        class="dropdown-item"
-        :class="[`heading-${h.level}`]"
-        @click="selectHeading(h.level)"
-      >
-        {{ h.label }}
-      </button>
-    </div>
+    <Teleport to="body">
+      <div v-if="isOpen" class="dropdown-menu" :style="menuStyle">
+        <button
+          v-for="h in headings"
+          :key="h.level"
+          class="dropdown-item"
+          :class="[`heading-${h.level}`]"
+          @click="selectHeading(h.level)"
+        >
+          {{ h.label }}
+        </button>
+      </div>
+    </Teleport>
   </div>
 </template>
 
@@ -59,13 +81,14 @@ function selectHeading(level: number) {
   display: flex;
   align-items: center;
   justify-content: center;
-  min-width: 28px;
-  height: 28px;
-  padding: 0 8px;
-  font-size: 13px;
+  width: var(--toolbar-h, 40px);
+  min-width: var(--toolbar-h, 40px);
+  height: var(--toolbar-h, 40px);
+  padding: 0;
+  font-size: 14px;
   font-weight: 600;
   color: var(--text-primary);
-  border-radius: var(--radius-sm);
+  border-radius: 4px;
   transition: background var(--transition-fast);
 }
 
@@ -81,22 +104,21 @@ function selectHeading(level: number) {
   font-size: 10px;
   color: var(--text-secondary);
 }
+</style>
 
+<style>
 .dropdown-menu {
-  position: absolute;
-  top: 100%;
-  left: 0;
-  margin-top: 4px;
+  position: fixed;
   min-width: 120px;
   background: var(--bg-primary);
   border: 1px solid var(--border-color);
   border-radius: var(--radius-md);
   box-shadow: var(--shadow-md);
-  z-index: 100;
+  z-index: 10000;
   overflow: hidden;
 }
 
-.dropdown-item {
+.dropdown-menu .dropdown-item {
   display: block;
   width: 100%;
   padding: 8px 12px;
@@ -105,43 +127,15 @@ function selectHeading(level: number) {
   transition: background var(--transition-fast);
 }
 
-.dropdown-item:hover {
+.dropdown-menu .dropdown-item:hover {
   background: var(--bg-hover);
 }
 
-.heading-1 { font-size: 1.5em; font-weight: 700; }
-.heading-2 { font-size: 1.3em; font-weight: 600; }
-.heading-3 { font-size: 1.15em; font-weight: 600; }
-.heading-4 { font-size: 1em; font-weight: 600; }
-.heading-5 { font-size: 0.9em; font-weight: 600; }
-.heading-6 { font-size: 0.85em; font-weight: 600; }
-.heading-0 { font-size: 1em; font-weight: 400; }
-
-/* Responsive Styles */
-@media screen and (max-width: 768px) {
-  .toolbar-btn {
-    min-width: 36px;
-    height: 36px;
-    padding: 0 10px;
-    font-size: 14px;
-  }
-
-  .dropdown-menu {
-    min-width: 140px;
-    max-height: 70vh;
-    overflow-y: auto;
-  }
-
-  .dropdown-item {
-    padding: 12px 16px;
-  }
-}
-
-@media screen and (max-width: 480px) {
-  .toolbar-btn {
-    min-width: 32px;
-    height: 32px;
-    font-size: 13px;
-  }
-}
+.dropdown-menu .heading-1 { font-size: 1.5em; font-weight: 700; }
+.dropdown-menu .heading-2 { font-size: 1.3em; font-weight: 600; }
+.dropdown-menu .heading-3 { font-size: 1.15em; font-weight: 600; }
+.dropdown-menu .heading-4 { font-size: 1em; font-weight: 600; }
+.dropdown-menu .heading-5 { font-size: 0.9em; font-weight: 600; }
+.dropdown-menu .heading-6 { font-size: 0.85em; font-weight: 600; }
+.dropdown-menu .heading-0 { font-size: 1em; font-weight: 400; }
 </style>

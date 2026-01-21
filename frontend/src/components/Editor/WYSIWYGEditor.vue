@@ -7,7 +7,6 @@ import TurndownService from 'turndown'
 // @ts-expect-error - no type definitions
 import { gfm } from 'turndown-plugin-gfm'
 import { uploadImageFromClipboard, hasImageInClipboard } from '@/utils/imageUpload'
-import SelectionToolbar from './SelectionToolbar.vue'
 
 const editorStore = useEditorStore()
 const editorElement = ref<HTMLDivElement | null>(null)
@@ -15,10 +14,7 @@ const isComposing = ref(false)
 const lastSavedSelection = ref<{ start: number; end: number } | null>(null)
 const isUploading = ref(false)
 
-// Selection toolbar state
-const showSelectionToolbar = ref(false)
-const selectionToolbarPosition = ref({ x: 0, y: 0 })
-const selectedElement = ref<HTMLElement | null>(null)
+// Selection toolbar removed - floating toolbar disabled
 
 // Image resize state
 const selectedImage = ref<HTMLImageElement | null>(null)
@@ -230,8 +226,7 @@ function selectImage(img: HTMLImageElement) {
     height: rect.height
   }
 
-  // Hide selection toolbar when image is selected
-  showSelectionToolbar.value = false
+  // Floating selection toolbar removed; no action needed
 }
 
 // Deselect image
@@ -501,163 +496,6 @@ function clearFormattingForNewLine() {
   document.execCommand('removeFormat', false)
 }
 
-// Handle toolbar commands
-function handleToolbarCommand(command: string, value?: string) {
-  switch (command) {
-    case 'bold':
-      document.execCommand('bold', false)
-      break
-    case 'italic':
-      document.execCommand('italic', false)
-      break
-    case 'underline':
-      document.execCommand('underline', false)
-      break
-    case 'strikethrough':
-      document.execCommand('strikeThrough', false)
-      break
-    case 'highlight':
-      if (value) {
-        document.execCommand('backColor', false, value)
-      }
-      break
-    case 'foreColor':
-      if (value) {
-        document.execCommand('foreColor', false, value)
-      }
-      break
-    case 'heading':
-      if (value) {
-        document.execCommand('formatBlock', false, `h${value}`)
-      }
-      break
-    case 'quote':
-      document.execCommand('formatBlock', false, 'blockquote')
-      break
-    case 'taskList':
-      insertTaskList()
-      break
-    case 'link':
-      insertLink()
-      break
-    case 'image':
-      insertImage()
-      break
-    case 'code':
-    case 'inlineCode':
-      wrapWithTag('code')
-      break
-    case 'codeBlock':
-      insertCodeBlock()
-      break
-    case 'superscript':
-      wrapWithTag('sup')
-      break
-    case 'subscript':
-      wrapWithTag('sub')
-      break
-    case 'horizontalRule':
-      document.execCommand('insertHorizontalRule', false)
-      break
-    case 'center':
-      toggleCenterAlign()
-      break
-  }
-
-  handleInput()
-  showSelectionToolbar.value = false
-}
-
-// Insert task list
-function insertTaskList() {
-  const selection = window.getSelection()
-  if (!selection || selection.rangeCount === 0) return
-
-  const range = selection.getRangeAt(0)
-  const text = range.toString() || '任务项'
-
-  const li = document.createElement('li')
-  const checkbox = document.createElement('input')
-  checkbox.type = 'checkbox'
-  li.appendChild(checkbox)
-  li.appendChild(document.createTextNode(' ' + text))
-
-  const ul = document.createElement('ul')
-  ul.appendChild(li)
-
-  range.deleteContents()
-  range.insertNode(ul)
-}
-
-// Insert link
-function insertLink() {
-  const selection = window.getSelection()
-  if (!selection || selection.rangeCount === 0) return
-
-  const range = selection.getRangeAt(0)
-  const text = range.toString() || '链接文字'
-  const url = prompt('请输入链接地址:', 'https://')
-
-  if (url) {
-    const link = document.createElement('a')
-    link.href = url
-    link.textContent = text
-    range.deleteContents()
-    range.insertNode(link)
-  }
-}
-
-// Insert image
-function insertImage() {
-  const url = prompt('请输入图片地址:', 'https://')
-
-  if (url) {
-    const img = document.createElement('img')
-    img.src = url
-    img.alt = 'image'
-
-    const selection = window.getSelection()
-    if (selection && selection.rangeCount > 0) {
-      const range = selection.getRangeAt(0)
-      range.deleteContents()
-      range.insertNode(img)
-    }
-  }
-}
-
-// Insert code block
-function insertCodeBlock() {
-  const selection = window.getSelection()
-  if (!selection || selection.rangeCount === 0) return
-
-  const range = selection.getRangeAt(0)
-  const text = range.toString() || '代码'
-
-  const pre = document.createElement('pre')
-  const code = document.createElement('code')
-  code.textContent = text
-  pre.appendChild(code)
-
-  range.deleteContents()
-  range.insertNode(pre)
-}
-
-// Wrap selection with tag
-function wrapWithTag(tagName: string) {
-  const selection = window.getSelection()
-  if (!selection || selection.rangeCount === 0) return
-
-  const range = selection.getRangeAt(0)
-  const text = range.toString()
-
-  if (text) {
-    const element = document.createElement(tagName)
-    element.textContent = text
-    range.deleteContents()
-    range.insertNode(element)
-  }
-}
-
 // Toggle center alignment using <div align="center">
 function toggleCenterAlign() {
   const selection = window.getSelection()
@@ -766,9 +604,8 @@ function handleKeydown(event: KeyboardEvent) {
     }, 0)
   }
 
-  // Escape to close toolbar or deselect image
+  // Escape to deselect image (floating toolbar removed)
   if (event.key === 'Escape') {
-    showSelectionToolbar.value = false
     deselectImage()
   }
 }
@@ -849,31 +686,8 @@ function handleMouseUp(event: MouseEvent) {
   // Don't show if image is selected
   if (selectedImage.value) return
 
-  setTimeout(() => {
-    const selection = window.getSelection()
-    if (!selection || selection.isCollapsed || !editorElement.value) {
-      showSelectionToolbar.value = false
-      return
-    }
-
-    const text = selection.toString().trim()
-    if (!text) {
-      showSelectionToolbar.value = false
-      return
-    }
-
-    // Get selection bounds
-    const range = selection.getRangeAt(0)
-    const rect = range.getBoundingClientRect()
-
-    // Position toolbar above selection
-    selectionToolbarPosition.value = {
-      x: rect.left + rect.width / 2,
-      y: rect.top - 10
-    }
-
-    showSelectionToolbar.value = true
-  }, 10)
+  // Selection toolbar removed: no action on mouseup
+  return
 }
 
 // Handle selection change for collaboration
@@ -933,11 +747,6 @@ function handleCursorMove() {
   }
 }
 
-// Close toolbar
-function closeToolbar() {
-  showSelectionToolbar.value = false
-}
-
 // Expose sync method for external use
 function syncToMarkdown() {
   handleInput()
@@ -983,14 +792,7 @@ onUnmounted(() => {
       @mouseup="handleMouseUp"
     />
 
-    <!-- Selection Toolbar -->
-    <SelectionToolbar
-      :visible="showSelectionToolbar"
-      :position="selectionToolbarPosition"
-      :selected-element="selectedElement"
-      @command="handleToolbarCommand"
-      @close="closeToolbar"
-    />
+    <!-- Floating selection toolbar removed -->
 
     <!-- Image Resize Handles -->
     <div

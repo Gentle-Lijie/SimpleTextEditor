@@ -1,5 +1,7 @@
 <script setup lang="ts">
-defineProps<{
+import { ref, computed, watch } from 'vue'
+
+const props = defineProps<{
   isOpen: boolean
 }>()
 
@@ -8,6 +10,24 @@ const emit = defineEmits<{
   (e: 'command', command: string, value?: string): void
   (e: 'close'): void
 }>()
+
+const triggerRef = ref<HTMLElement | null>(null)
+const menuPosition = ref({ top: 0, left: 0 })
+
+watch(() => props.isOpen, (open) => {
+  if (open && triggerRef.value) {
+    const rect = triggerRef.value.getBoundingClientRect()
+    menuPosition.value = {
+      top: rect.bottom + 4,
+      left: rect.left
+    }
+  }
+})
+
+const menuStyle = computed(() => ({
+  top: `${menuPosition.value.top}px`,
+  left: `${menuPosition.value.left}px`
+}))
 
 interface ListOption {
   id: string
@@ -29,21 +49,23 @@ function selectList(id: string) {
 
 <template>
   <div class="toolbar-dropdown">
-    <button class="toolbar-btn dropdown-trigger" title="列表" @click="emit('toggle')">
+    <button ref="triggerRef" class="toolbar-btn dropdown-trigger" title="列表" @click="emit('toggle')">
       ≡
       <span class="dropdown-arrow">▾</span>
     </button>
-    <div v-if="isOpen" class="dropdown-menu">
-      <button
-        v-for="opt in listOptions"
-        :key="opt.id"
-        class="dropdown-item"
-        @click="selectList(opt.id)"
-      >
-        <span class="item-icon">{{ opt.icon }}</span>
-        <span>{{ opt.label }}</span>
-      </button>
-    </div>
+    <Teleport to="body">
+      <div v-if="isOpen" class="dropdown-menu list-menu" :style="menuStyle">
+        <button
+          v-for="opt in listOptions"
+          :key="opt.id"
+          class="dropdown-item"
+          @click="selectList(opt.id)"
+        >
+          <span class="item-icon">{{ opt.icon }}</span>
+          <span>{{ opt.label }}</span>
+        </button>
+      </div>
+    </Teleport>
   </div>
 </template>
 
@@ -56,12 +78,13 @@ function selectList(id: string) {
   display: flex;
   align-items: center;
   justify-content: center;
-  min-width: 28px;
-  height: 28px;
-  padding: 0 8px;
-  font-size: 13px;
+  width: var(--toolbar-h, 40px);
+  min-width: var(--toolbar-h, 40px);
+  height: var(--toolbar-h, 40px);
+  padding: 0;
+  font-size: 14px;
   color: var(--text-primary);
-  border-radius: var(--radius-sm);
+  border-radius: 4px;
   transition: background var(--transition-fast);
 }
 
@@ -77,65 +100,22 @@ function selectList(id: string) {
   font-size: 10px;
   color: var(--text-secondary);
 }
+</style>
 
-.dropdown-menu {
-  position: absolute;
-  top: 100%;
-  left: 0;
-  margin-top: 4px;
+<style>
+.list-menu.dropdown-menu {
   min-width: 140px;
-  background: var(--bg-primary);
-  border: 1px solid var(--border-color);
-  border-radius: var(--radius-md);
-  box-shadow: var(--shadow-md);
-  z-index: 100;
-  overflow: hidden;
 }
 
-.dropdown-item {
+.list-menu .dropdown-item {
   display: flex;
   align-items: center;
   gap: 8px;
-  width: 100%;
-  padding: 8px 12px;
-  text-align: left;
-  color: var(--text-primary);
-  transition: background var(--transition-fast);
 }
 
-.dropdown-item:hover {
-  background: var(--bg-hover);
-}
-
-.item-icon {
+.list-menu .item-icon {
   width: 20px;
   text-align: center;
   font-size: 14px;
-}
-
-/* Responsive Styles */
-@media screen and (max-width: 768px) {
-  .toolbar-btn {
-    min-width: 36px;
-    height: 36px;
-    padding: 0 10px;
-    font-size: 14px;
-  }
-
-  .dropdown-menu {
-    min-width: 160px;
-  }
-
-  .dropdown-item {
-    padding: 12px 16px;
-  }
-}
-
-@media screen and (max-width: 480px) {
-  .toolbar-btn {
-    min-width: 32px;
-    height: 32px;
-    font-size: 13px;
-  }
 }
 </style>

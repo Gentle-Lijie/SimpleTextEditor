@@ -42,6 +42,10 @@ const emit = defineEmits<{
   (e: "changeMode", mode: EditorMode): void;
   (e: "save"): void;
 }>();
+
+// Read application title from Vite environment variables with sensible defaults
+const appTitle = (import.meta.env.VITE_APP_TITLE as string) ?? 'SimpleTextEditor'
+const shortTitle = (import.meta.env.VITE_APP_SHORT as string) ?? 'STE'
 </script>
 
 <template>
@@ -60,7 +64,7 @@ const emit = defineEmits<{
         </svg>
       </button>
       <div class="logo" :class="{ 'logo-short': isMobile }">
-        {{ isMobile ? 'STE' : 'SimpleTextEditor' }}
+        {{ isMobile ? shortTitle : appTitle }}
       </div>
     </div>
     <div class="header-center">
@@ -244,17 +248,26 @@ const emit = defineEmits<{
 /* Responsive Styles */
 @media screen and (max-width: 768px) {
   .app-header {
-    height: 44px;
-    padding: 0 12px;
+    height: 40px;
+    padding: 0 10px;
   }
 
   .header-left,
   .header-right {
-    gap: 8px;
+    gap: 6px;
+  }
+
+  .sidebar-toggle {
+    padding: 4px;
+  }
+
+  .sidebar-toggle svg {
+    width: 18px;
+    height: 18px;
   }
 
   .logo {
-    font-size: 14px;
+    font-size: 13px;
   }
 
   .logo-short {
@@ -266,23 +279,46 @@ const emit = defineEmits<{
   }
 
   .mode-btn {
-    padding: 4px 10px;
-    font-size: 12px;
+    padding: 4px 8px;
+    font-size: 11px;
   }
 
   .save-btn {
-    padding: 8px;
+    padding: 6px;
+  }
+
+  .save-btn svg {
+    width: 14px;
+    height: 14px;
   }
 }
 
 @media screen and (max-width: 480px) {
   .app-header {
+    height: 36px;
     padding: 0 8px;
   }
 
+  .sidebar-toggle {
+    padding: 3px;
+  }
+
+  .sidebar-toggle svg {
+    width: 16px;
+    height: 16px;
+  }
+
+  .logo {
+    font-size: 12px;
+  }
+
   .mode-btn {
-    padding: 4px 8px;
-    font-size: 11px;
+    padding: 3px 6px;
+    font-size: 10px;
+  }
+
+  .save-btn {
+    padding: 4px;
   }
 }
 </style>

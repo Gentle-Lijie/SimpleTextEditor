@@ -312,24 +312,28 @@ onUnmounted(() => {
 
       <div class="app-body">
         <!-- Mobile sidebar overlay -->
-        <div
-          v-if="isMobile && showSidebar"
-          class="sidebar-overlay"
-          @click="showSidebar = false"
-        ></div>
+        <Transition name="fade">
+          <div
+            v-if="isMobile && showSidebar"
+            class="sidebar-overlay"
+            @click="showSidebar = false"
+          ></div>
+        </Transition>
 
-        <AppSidebar
-          v-if="showSidebar"
-          :active-tab="sidebarTab"
-          :users="collaboration.users.value"
-          :current-user="collaboration.currentUser.value"
-          :connected="collaboration.connected.value"
-          :is-mobile="isMobile"
-          :class="{ 'sidebar-open': showSidebar }"
-          @change-tab="handleChangeTab"
-          @update:user-name="collaboration.setUserName"
-          @close="showSidebar = false"
-        />
+        <Transition :name="isMobile ? 'slide' : ''">
+          <AppSidebar
+            v-if="showSidebar"
+            :active-tab="sidebarTab"
+            :users="collaboration.users.value"
+            :current-user="collaboration.currentUser.value"
+            :connected="collaboration.connected.value"
+            :is-mobile="isMobile"
+            :class="{ 'sidebar-mobile': isMobile }"
+            @change-tab="handleChangeTab"
+            @update:user-name="collaboration.setUserName"
+            @close="showSidebar = false"
+          />
+        </Transition>
 
         <main class="app-main">
           <Editor ref="editorRef" />
@@ -387,30 +391,49 @@ onUnmounted(() => {
 .sidebar-overlay {
   position: fixed;
   inset: 0;
-  background: rgba(0, 0, 0, 0.5);
+  background: rgba(0, 0, 0, 0.4);
   z-index: 999;
 }
 
-/* Mobile adjustments */
-@media screen and (max-width: 768px) {
-  .sidebar-open {
-    position: fixed;
-    left: 0;
-    top: 0;
-    bottom: 0;
-    width: 85%;
-    max-width: 320px;
-    z-index: 1000;
-    transform: translateX(0);
-    transition: transform 0.3s ease;
-  }
+/* Fade transition for overlay */
+.fade-enter-active,
+.fade-leave-active {
+  transition: opacity 0.25s ease;
 }
 
-/* Small mobile */
+.fade-enter-from,
+.fade-leave-to {
+  opacity: 0;
+}
+
+/* Slide transition for sidebar */
+.slide-enter-active,
+.slide-leave-active {
+  transition: transform 0.25s ease;
+}
+
+.slide-enter-from,
+.slide-leave-to {
+  transform: translateX(-100%);
+}
+
+/* Mobile sidebar */
+.sidebar-mobile {
+  position: fixed;
+  left: 0;
+  top: 0;
+  bottom: 0;
+  width: 75%;
+  max-width: 280px;
+  z-index: 1000;
+  box-shadow: 2px 0 12px rgba(0, 0, 0, 0.15);
+}
+
+/* Small mobile - still not full width */
 @media screen and (max-width: 480px) {
-  .sidebar-open {
-    width: 100%;
-    max-width: none;
+  .sidebar-mobile {
+    width: 80%;
+    max-width: 300px;
   }
 }
 </style>

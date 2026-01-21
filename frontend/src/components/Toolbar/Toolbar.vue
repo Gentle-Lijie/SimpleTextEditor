@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref, provide } from 'vue'
+import { ref, provide, onMounted, onUnmounted } from 'vue'
 import FormatButtons from './FormatButtons.vue'
 import HeadingMenu from './HeadingMenu.vue'
 import ListMenu from './ListMenu.vue'
@@ -28,113 +28,109 @@ function closeDropdowns() {
   activeDropdown.value = null
 }
 
-// Close dropdowns when clicking outside
-function handleClickOutside(event: MouseEvent) {
+// Close dropdowns when clicking outside (global listener for Teleported menus)
+function handleGlobalClick(event: MouseEvent) {
   const target = event.target as HTMLElement
-  if (!target.closest('.toolbar-dropdown')) {
+  // Check if click is inside a dropdown trigger or menu
+  if (!target.closest('.toolbar-dropdown') && !target.closest('.dropdown-menu')) {
     closeDropdowns()
   }
 }
+
+onMounted(() => {
+  document.addEventListener('click', handleGlobalClick)
+})
+
+onUnmounted(() => {
+  document.removeEventListener('click', handleGlobalClick)
+})
 </script>
 
 <template>
-  <div class="toolbar" @click="handleClickOutside">
-    <div class="toolbar-group">
-      <FormatButtons @command="executeCommand" />
-    </div>
+  <div class="toolbar-wrapper" :style="{'--toolbar-h': '40px'}">
+    <div class="toolbar-scroll">
+      <div class="toolbar-group">
+        <FormatButtons @command="executeCommand" />
+      </div>
 
-    <div class="toolbar-divider"></div>
+      <div class="toolbar-divider"></div>
 
-    <div class="toolbar-group">
-      <HeadingMenu
-        :is-open="activeDropdown === 'heading'"
-        @toggle="toggleDropdown('heading')"
-        @command="executeCommand"
-        @close="closeDropdowns"
-      />
-    </div>
+      <div class="toolbar-group">
+        <HeadingMenu
+          :is-open="activeDropdown === 'heading'"
+          @toggle="toggleDropdown('heading')"
+          @command="executeCommand"
+          @close="closeDropdowns"
+        />
+      </div>
 
-    <div class="toolbar-divider"></div>
+      <div class="toolbar-divider"></div>
 
-    <div class="toolbar-group">
-      <ListMenu
-        :is-open="activeDropdown === 'list'"
-        @toggle="toggleDropdown('list')"
-        @command="executeCommand"
-        @close="closeDropdowns"
-      />
-    </div>
+      <div class="toolbar-group">
+        <ListMenu
+          :is-open="activeDropdown === 'list'"
+          @toggle="toggleDropdown('list')"
+          @command="executeCommand"
+          @close="closeDropdowns"
+        />
+      </div>
 
-    <div class="toolbar-divider"></div>
+      <div class="toolbar-divider"></div>
 
-    <div class="toolbar-group">
-      <InsertMenu
-        :is-open="activeDropdown === 'insert'"
-        @toggle="toggleDropdown('insert')"
-        @command="executeCommand"
-        @close="closeDropdowns"
-      />
-    </div>
+      <div class="toolbar-group">
+        <InsertMenu
+          :is-open="activeDropdown === 'insert'"
+          @toggle="toggleDropdown('insert')"
+          @command="executeCommand"
+          @close="closeDropdowns"
+        />
+      </div>
 
-    <div class="toolbar-divider"></div>
+      <div class="toolbar-divider"></div>
 
-    <div class="toolbar-group">
-      <ColorPicker @command="executeCommand" />
+      <div class="toolbar-group">
+        <ColorPicker @command="executeCommand" />
+      </div>
     </div>
   </div>
 </template>
 
 <style scoped>
-.toolbar {
-  display: flex;
-  align-items: center;
-  padding: 4px 12px;
+.toolbar-wrapper {
+  position: relative;
+  height: var(--toolbar-h, 40px);
   background: var(--toolbar-bg);
   border-bottom: 1px solid var(--border-color);
+}
+
+.toolbar-scroll {
+  display: flex;
+  align-items: center;
+  height: 100%;
+  padding: 0 8px;
   gap: 4px;
-  flex-wrap: wrap;
+  overflow-x: auto;
+  overflow-y: hidden;
+  -webkit-overflow-scrolling: touch;
+  scrollbar-width: none;
+}
+
+.toolbar-scroll::-webkit-scrollbar {
+  display: none;
 }
 
 .toolbar-group {
   display: flex;
   align-items: center;
   gap: 2px;
+  flex-shrink: 0;
 }
 
 .toolbar-divider {
   width: 1px;
-  height: 20px;
+  height: 24px;
   background: var(--border-color);
   margin: 0 4px;
-}
-
-/* Responsive Toolbar Styles */
-@media screen and (max-width: 768px) {
-  .toolbar {
-    padding: 4px 8px;
-    gap: 2px;
-    overflow-x: auto;
-    -webkit-overflow-scrolling: touch;
-    scrollbar-width: none; /* Firefox */
-  }
-
-  .toolbar::-webkit-scrollbar {
-    display: none;
-  }
-
-  .toolbar-group {
-    flex-shrink: 0;
-  }
-
-  .toolbar-divider {
-    height: 16px;
-    margin: 0 2px;
-  }
-}
-
-@media screen and (max-width: 480px) {
-  .toolbar {
-    padding: 2px 6px;
-  }
+  flex-shrink: 0;
 }
 </style>

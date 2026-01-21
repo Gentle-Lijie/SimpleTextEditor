@@ -42,13 +42,19 @@ function handleClick(id: string) {
   display: flex;
   align-items: center;
   justify-content: center;
-  min-width: 28px;
-  height: 28px;
-  padding: 0 6px;
-  font-size: 13px;
+  width: var(--toolbar-h, 40px);
+  min-width: var(--toolbar-h, 40px);
+  height: var(--toolbar-h, 40px);
+  padding: 0;
+  font-size: 14px;
   color: var(--text-primary);
-  border-radius: var(--radius-sm);
+  border-radius: 4px;
   transition: background var(--transition-fast);
+}
+
+.toolbar-btn svg {
+  width: 18px;
+  height: 18px;
 }
 
 .toolbar-btn:hover {
@@ -74,23 +80,5 @@ function handleClick(id: string) {
 
 .btn-underline {
   text-decoration: underline;
-}
-
-/* Responsive Styles */
-@media screen and (max-width: 768px) {
-  .toolbar-btn {
-    min-width: 36px;
-    height: 36px;
-    padding: 0 8px;
-    font-size: 14px;
-  }
-}
-
-@media screen and (max-width: 480px) {
-  .toolbar-btn {
-    min-width: 32px;
-    height: 32px;
-    font-size: 13px;
-  }
 }
 </style>
