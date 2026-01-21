@@ -465,4 +465,73 @@ watch(() => props.visible, (visible) => {
   flex: 1;
   text-align: left;
 }
+
+/* Responsive Styles */
+@media screen and (max-width: 768px) {
+  .selection-toolbar {
+    padding: 6px;
+    gap: 4px;
+  }
+
+  .toolbar-btn {
+    width: 36px;
+    height: 36px;
+  }
+
+  .toolbar-btn svg {
+    width: 18px;
+    height: 18px;
+  }
+
+  .heading-btn {
+    font-size: 14px;
+  }
+
+  .toolbar-divider {
+    height: 20px;
+    margin: 0 4px;
+  }
+
+  .color-grid {
+    width: 160px;
+    gap: 6px;
+    padding: 10px;
+  }
+
+  .color-swatch {
+    width: 28px;
+    height: 28px;
+  }
+
+  .heading-menu {
+    padding: 8px;
+    gap: 6px;
+  }
+
+  .heading-option {
+    padding: 8px 14px;
+  }
+
+  .more-menu {
+    padding: 6px;
+    min-width: 140px;
+  }
+
+  .menu-item {
+    padding: 10px 12px;
+    font-size: 14px;
+  }
+}
+
+/* Touch device - prevent accidental taps */
+@media (hover: none) and (pointer: coarse) {
+  .selection-toolbar {
+    padding: 8px;
+  }
+
+  .toolbar-btn {
+    min-width: 40px;
+    min-height: 40px;
+  }
+}
 </style>

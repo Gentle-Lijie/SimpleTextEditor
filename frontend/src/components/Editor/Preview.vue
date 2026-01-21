@@ -323,4 +323,104 @@ watch(renderedContent, async () => {
 .markdown-body .katex {
   font-size: 1.1em;
 }
+
+/* Responsive Styles */
+@media screen and (max-width: 768px) {
+  .preview-content {
+    padding: 16px;
+    max-width: none;
+  }
+
+  .markdown-body {
+    font-size: 15px;
+    line-height: 1.6;
+  }
+
+  .markdown-body h1 {
+    font-size: 1.6em;
+  }
+
+  .markdown-body h2 {
+    font-size: 1.35em;
+  }
+
+  .markdown-body h3 {
+    font-size: 1.15em;
+  }
+
+  .markdown-body h1,
+  .markdown-body h2,
+  .markdown-body h3,
+  .markdown-body h4,
+  .markdown-body h5,
+  .markdown-body h6 {
+    margin-top: 20px;
+    margin-bottom: 12px;
+  }
+
+  .markdown-body p {
+    margin-bottom: 12px;
+  }
+
+  .markdown-body pre {
+    padding: 12px;
+    font-size: 13px;
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+  }
+
+  .markdown-body table {
+    display: block;
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+  }
+
+  .markdown-body table th,
+  .markdown-body table td {
+    padding: 8px 12px;
+    white-space: nowrap;
+  }
+
+  .markdown-body blockquote {
+    padding-left: 12px;
+    margin-left: 0;
+    margin-right: 0;
+  }
+
+  .markdown-body .mermaid {
+    padding: 12px;
+    overflow-x: auto;
+  }
+
+  .markdown-body .katex-display {
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+  }
+}
+
+@media screen and (max-width: 480px) {
+  .preview-content {
+    padding: 12px;
+  }
+
+  .markdown-body {
+    font-size: 14px;
+  }
+
+  .markdown-body h1 {
+    font-size: 1.4em;
+  }
+
+  .markdown-body h2 {
+    font-size: 1.2em;
+  }
+
+  .markdown-body h3 {
+    font-size: 1.1em;
+  }
+
+  .markdown-body pre {
+    font-size: 12px;
+  }
+}
 </style>

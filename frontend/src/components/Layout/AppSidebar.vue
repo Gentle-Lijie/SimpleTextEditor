@@ -21,17 +21,32 @@ defineProps({
   connected: {
     type: Boolean,
     default: false
+  },
+  isMobile: {
+    type: Boolean,
+    default: false
   }
 })
 
 const emit = defineEmits<{
   (e: "change-tab", tab: "files" | "outline" | "collab"): void;
   (e: "update:user-name", name: string): void;
+  (e: "close"): void;
 }>();
 </script>
 
 <template>
   <aside class="sidebar">
+    <div v-if="isMobile" class="sidebar-header">
+      <span class="sidebar-title">
+        {{ activeTab === 'files' ? '文件' : activeTab === 'outline' ? '大纲' : '协作' }}
+      </span>
+      <button class="sidebar-close" @click="emit('close')">
+        <svg viewBox="0 0 24 24" width="20" height="20">
+          <path fill="currentColor" d="M19 6.41L17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"/>
+        </svg>
+      </button>
+    </div>
     <div class="sidebar-tabs">
       <button
         class="sidebar-tab"
@@ -126,5 +141,68 @@ const emit = defineEmits<{
 .sidebar-content {
   flex: 1;
   overflow: hidden;
+}
+
+/* Mobile header */
+.sidebar-header {
+  display: none;
+}
+
+/* Responsive Styles */
+@media screen and (max-width: 768px) {
+  .sidebar {
+    flex-direction: column;
+    width: 100%;
+    height: 100%;
+  }
+
+  .sidebar-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 12px 16px;
+    border-bottom: 1px solid var(--border-color);
+    background: var(--bg-secondary);
+  }
+
+  .sidebar-title {
+    font-size: 16px;
+    font-weight: 600;
+  }
+
+  .sidebar-close {
+    padding: 6px;
+    color: var(--text-secondary);
+    border-radius: var(--radius-sm);
+  }
+
+  .sidebar-close:hover {
+    background: var(--bg-hover);
+  }
+
+  .sidebar-tabs {
+    flex-direction: row;
+    justify-content: center;
+    padding: 8px;
+    border-right: none;
+    border-bottom: 1px solid var(--border-color);
+  }
+
+  .sidebar-tab {
+    flex: 1;
+    justify-content: center;
+  }
+
+  .sidebar-content {
+    flex: 1;
+    overflow-y: auto;
+    -webkit-overflow-scrolling: touch;
+  }
+}
+
+@media screen and (max-width: 1024px) {
+  .sidebar {
+    width: 240px;
+  }
 }
 </style>

@@ -75,4 +75,22 @@ function handleClick(id: string) {
 .btn-underline {
   text-decoration: underline;
 }
+
+/* Responsive Styles */
+@media screen and (max-width: 768px) {
+  .toolbar-btn {
+    min-width: 36px;
+    height: 36px;
+    padding: 0 8px;
+    font-size: 14px;
+  }
+}
+
+@media screen and (max-width: 480px) {
+  .toolbar-btn {
+    min-width: 32px;
+    height: 32px;
+    font-size: 13px;
+  }
+}
 </style>

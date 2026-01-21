@@ -112,4 +112,30 @@ function selectList(id: string) {
   text-align: center;
   font-size: 14px;
 }
+
+/* Responsive Styles */
+@media screen and (max-width: 768px) {
+  .toolbar-btn {
+    min-width: 36px;
+    height: 36px;
+    padding: 0 10px;
+    font-size: 14px;
+  }
+
+  .dropdown-menu {
+    min-width: 160px;
+  }
+
+  .dropdown-item {
+    padding: 12px 16px;
+  }
+}
+
+@media screen and (max-width: 480px) {
+  .toolbar-btn {
+    min-width: 32px;
+    height: 32px;
+    font-size: 13px;
+  }
+}
 </style>

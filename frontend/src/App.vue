@@ -27,8 +27,21 @@ const editorRef = ref<InstanceType<typeof Editor> | null>(null)
 const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:3001'
 const AUTO_SAVE_DELAY = parseInt(import.meta.env.VITE_AUTO_SAVE_DELAY || '3000')
 
+// Mobile detection
+const isMobile = ref(window.innerWidth <= 768)
+const isTablet = ref(window.innerWidth <= 1024 && window.innerWidth > 768)
+
+function handleResize() {
+  isMobile.value = window.innerWidth <= 768
+  isTablet.value = window.innerWidth <= 1024 && window.innerWidth > 768
+  // Auto-close sidebar on mobile when resizing to smaller screen
+  if (isMobile.value && showSidebar.value) {
+    showSidebar.value = false
+  }
+}
+
 const isAuthenticated = ref(false)
-const showSidebar = ref(true)
+const showSidebar = ref(!isMobile.value)
 const sidebarTab = ref<'files' | 'outline' | 'collab'>('files')
 
 const windowManager = useWindowManager()
@@ -73,6 +86,14 @@ const modeLabels: Record<EditorMode, string> = {
   preview: '预览',
   split: '分屏',
   wysiwyg: '所见即所得'
+}
+
+// Short mode labels for mobile
+const modeLabelsShort: Record<EditorMode, string> = {
+  source: '源码',
+  preview: '预览',
+  split: '分屏',
+  wysiwyg: '编辑'
 }
 
 function toggleSidebar() {
@@ -258,10 +279,12 @@ watch(() => editorStore.content, () => {
 
 onMounted(() => {
   collaboration.disconnect()
+  window.addEventListener('resize', handleResize)
 })
 
 onUnmounted(() => {
   window.removeEventListener('keydown', handleGlobalKeydown)
+  window.removeEventListener('resize', handleResize)
   if (autoSaveTimer) clearTimeout(autoSaveTimer)
 })
 </script>
@@ -270,15 +293,16 @@ onUnmounted(() => {
   <div id="app-wrapper">
     <AuthGate v-if="!isAuthenticated" :api-url="API_URL" @authenticated="handleAuthenticated" />
 
-    <div v-else id="app-container">
+    <div v-else id="app-container" :class="{ 'is-mobile': isMobile, 'is-tablet': isTablet }">
       <AppHeader
         :editor-mode="editorStore.mode"
-        :mode-labels="modeLabels"
+        :mode-labels="isMobile ? modeLabelsShort : modeLabels"
         :is-saving="editorStore.isSaving"
         :is-dirty="editorStore.isDirty"
         :is-readonly="documentStore.isDefaultDocument"
         :collab-user-count="collabUserCount"
         :collab-connected="collaboration.connected.value"
+        :is-mobile="isMobile"
         @toggle-sidebar="toggleSidebar"
         @change-mode="setMode"
         @save="saveDocument"
@@ -287,14 +311,24 @@ onUnmounted(() => {
       <Toolbar @command="handleCommand" />
 
       <div class="app-body">
+        <!-- Mobile sidebar overlay -->
+        <div
+          v-if="isMobile && showSidebar"
+          class="sidebar-overlay"
+          @click="showSidebar = false"
+        ></div>
+
         <AppSidebar
           v-if="showSidebar"
           :active-tab="sidebarTab"
           :users="collaboration.users.value"
           :current-user="collaboration.currentUser.value"
           :connected="collaboration.connected.value"
+          :is-mobile="isMobile"
+          :class="{ 'sidebar-open': showSidebar }"
           @change-tab="handleChangeTab"
           @update:user-name="collaboration.setUserName"
+          @close="showSidebar = false"
         />
 
         <main class="app-main">
@@ -309,6 +343,7 @@ onUnmounted(() => {
         :char-count="editorStore.charCount"
         :word-count="editorStore.wordCount"
         :reading-time="editorStore.readingTime"
+        :is-mobile="isMobile"
       />
 
       <WindowTakeoverOverlay
@@ -342,5 +377,40 @@ onUnmounted(() => {
   display: flex;
   flex: 1;
   overflow: hidden;
+}
+
+/* ========================================
+   Responsive Styles
+   ======================================== */
+
+/* Mobile sidebar overlay */
+.sidebar-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.5);
+  z-index: 999;
+}
+
+/* Mobile adjustments */
+@media screen and (max-width: 768px) {
+  .sidebar-open {
+    position: fixed;
+    left: 0;
+    top: 0;
+    bottom: 0;
+    width: 85%;
+    max-width: 320px;
+    z-index: 1000;
+    transform: translateX(0);
+    transition: transform 0.3s ease;
+  }
+}
+
+/* Small mobile */
+@media screen and (max-width: 480px) {
+  .sidebar-open {
+    width: 100%;
+    max-width: none;
+  }
 }
 </style>

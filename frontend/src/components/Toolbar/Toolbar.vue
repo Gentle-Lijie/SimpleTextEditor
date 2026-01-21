@@ -107,4 +107,34 @@ function handleClickOutside(event: MouseEvent) {
   background: var(--border-color);
   margin: 0 4px;
 }
+
+/* Responsive Toolbar Styles */
+@media screen and (max-width: 768px) {
+  .toolbar {
+    padding: 4px 8px;
+    gap: 2px;
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+    scrollbar-width: none; /* Firefox */
+  }
+
+  .toolbar::-webkit-scrollbar {
+    display: none;
+  }
+
+  .toolbar-group {
+    flex-shrink: 0;
+  }
+
+  .toolbar-divider {
+    height: 16px;
+    margin: 0 2px;
+  }
+}
+
+@media screen and (max-width: 480px) {
+  .toolbar {
+    padding: 2px 6px;
+  }
+}
 </style>

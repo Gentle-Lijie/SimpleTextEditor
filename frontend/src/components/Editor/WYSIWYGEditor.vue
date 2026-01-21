@@ -1288,4 +1288,127 @@ onUnmounted(() => {
 @keyframes spin {
   to { transform: rotate(360deg); }
 }
+
+/* ========================================
+   Responsive Styles for WYSIWYG Editor
+   ======================================== */
+
+@media screen and (max-width: 768px) {
+  .wysiwyg-editor {
+    padding: 16px;
+    font-size: 15px;
+    -webkit-overflow-scrolling: touch;
+  }
+
+  .wysiwyg-editor:empty::before {
+    font-size: 14px;
+  }
+
+  /* Larger touch targets for images */
+  .wysiwyg-editor :deep(img) {
+    min-height: 44px;
+  }
+
+  /* Adjust code blocks */
+  .wysiwyg-editor :deep(pre) {
+    padding: 12px;
+    font-size: 13px;
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+  }
+
+  /* Adjust tables for mobile */
+  .wysiwyg-editor :deep(table) {
+    display: block;
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+  }
+
+  .wysiwyg-editor :deep(th),
+  .wysiwyg-editor :deep(td) {
+    padding: 8px;
+    font-size: 14px;
+    white-space: nowrap;
+  }
+
+  /* Adjust blockquote */
+  .wysiwyg-editor :deep(blockquote) {
+    margin: 0.5em 0;
+    padding-left: 12px;
+    font-size: 14px;
+  }
+
+  /* Larger resize handles for touch */
+  .resize-handle {
+    width: 16px;
+    height: 16px;
+  }
+
+  .resize-handle.nw { top: -8px; left: -8px; }
+  .resize-handle.n { top: -8px; }
+  .resize-handle.ne { top: -8px; right: -8px; }
+  .resize-handle.w { left: -8px; }
+  .resize-handle.e { right: -8px; }
+  .resize-handle.sw { bottom: -8px; left: -8px; }
+  .resize-handle.s { bottom: -8px; }
+  .resize-handle.se { bottom: -8px; right: -8px; }
+
+  /* Hide source hints on mobile - too cluttered */
+  .wysiwyg-editor :deep([data-md-source].show-source)::before {
+    display: none;
+  }
+
+  .image-source-hint {
+    font-size: 10px;
+    padding: 2px 6px;
+  }
+
+  /* Upload indicator */
+  .upload-indicator {
+    padding: 10px 16px;
+    font-size: 13px;
+  }
+}
+
+@media screen and (max-width: 480px) {
+  .wysiwyg-editor {
+    padding: 12px;
+    font-size: 14px;
+  }
+
+  .wysiwyg-editor :deep(h1) {
+    font-size: 1.5em;
+  }
+
+  .wysiwyg-editor :deep(h2) {
+    font-size: 1.3em;
+  }
+
+  .wysiwyg-editor :deep(h3) {
+    font-size: 1.1em;
+  }
+
+  .wysiwyg-editor :deep(pre) {
+    font-size: 12px;
+  }
+}
+
+/* Touch device optimizations */
+@media (hover: none) and (pointer: coarse) {
+  .wysiwyg-editor :deep(a) {
+    /* Prevent accidental link activation */
+    -webkit-touch-callout: none;
+  }
+
+  .wysiwyg-editor :deep(img) {
+    /* Better touch feedback */
+    -webkit-tap-highlight-color: transparent;
+  }
+
+  /* Make resize handles more visible on touch */
+  .resize-handle {
+    background: var(--accent-primary);
+    opacity: 0.9;
+  }
+}
 </style>

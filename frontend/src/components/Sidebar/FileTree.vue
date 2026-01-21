@@ -616,4 +616,116 @@ function fileToBase64(file: File): Promise<string> {
 .error {
   color: var(--accent-error);
 }
+
+/* Responsive Styles */
+@media screen and (max-width: 768px) {
+  .file-tree-header {
+    padding: 14px 16px;
+  }
+
+  .header-btn {
+    width: 36px;
+    height: 36px;
+  }
+
+  .header-btn svg {
+    width: 20px;
+    height: 20px;
+  }
+
+  .new-doc-input {
+    padding: 12px 16px;
+  }
+
+  .new-doc-input input {
+    padding: 12px;
+    font-size: 16px;
+    margin-bottom: 12px;
+  }
+
+  .input-actions button {
+    padding: 10px 16px;
+    min-height: 44px;
+  }
+
+  .file-list {
+    -webkit-overflow-scrolling: touch;
+  }
+
+  .file-item {
+    padding: 12px 16px;
+    min-height: 56px;
+  }
+
+  .file-icon svg {
+    width: 20px;
+    height: 20px;
+  }
+
+  .file-name {
+    font-size: 15px;
+  }
+
+  .file-date {
+    font-size: 12px;
+    margin-top: 4px;
+  }
+
+  /* Always show actions on mobile (no hover) */
+  .file-actions {
+    display: flex;
+    opacity: 0.7;
+  }
+
+  .file-item.active .file-actions,
+  .file-item:active .file-actions {
+    opacity: 1;
+  }
+
+  .file-actions button {
+    padding: 8px;
+    min-width: 36px;
+    min-height: 36px;
+  }
+
+  .file-actions button svg {
+    width: 18px;
+    height: 18px;
+  }
+
+  .rename-input input {
+    padding: 10px 12px;
+    font-size: 16px;
+  }
+
+  .loading,
+  .error,
+  .empty {
+    padding: 24px 16px;
+    font-size: 14px;
+  }
+}
+
+@media screen and (max-width: 480px) {
+  .file-actions button {
+    padding: 6px;
+    min-width: 32px;
+    min-height: 32px;
+  }
+}
+
+/* Touch device optimizations */
+@media (hover: none) and (pointer: coarse) {
+  .file-item:hover {
+    background: inherit;
+  }
+
+  .file-item:active {
+    background: var(--bg-active);
+  }
+
+  .file-actions {
+    display: flex;
+  }
+}
 </style>

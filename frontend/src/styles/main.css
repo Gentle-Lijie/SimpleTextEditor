@@ -351,3 +351,130 @@ a:hover {
   color: #aff5b4;
   background-color: rgba(63, 185, 80, 0.3);
 }
+
+/* ========================================
+   Responsive Design - Media Queries
+   ======================================== */
+
+/* Tablet and small desktop (768px - 1024px) */
+@media screen and (max-width: 1024px) {
+  :root {
+    --sidebar-width: 240px;
+  }
+}
+
+/* Mobile devices (max-width: 768px) */
+@media screen and (max-width: 768px) {
+  :root {
+    --sidebar-width: 100%;
+    --header-height: 44px;
+    --toolbar-height: auto;
+    --footer-height: 20px;
+    --spacing-md: 12px;
+    --spacing-lg: 16px;
+  }
+
+  html {
+    font-size: 15px;
+    -webkit-text-size-adjust: 100%;
+  }
+
+  body {
+    -webkit-tap-highlight-color: transparent;
+  }
+
+  /* Prevent zoom on input focus */
+  input,
+  textarea,
+  select {
+    font-size: 16px !important;
+  }
+
+  /* Better touch targets */
+  button,
+  [role="button"],
+  .clickable {
+    min-height: 44px;
+    min-width: 44px;
+  }
+
+  /* Scrollbar - hide on mobile for cleaner look */
+  ::-webkit-scrollbar {
+    width: 4px;
+    height: 4px;
+  }
+
+  ::-webkit-scrollbar-thumb {
+    background: var(--text-tertiary);
+    border-radius: var(--radius-full);
+  }
+}
+
+/* Small mobile devices (max-width: 480px) */
+@media screen and (max-width: 480px) {
+  :root {
+    --spacing-sm: 6px;
+    --spacing-md: 10px;
+    --spacing-lg: 14px;
+  }
+
+  html {
+    font-size: 14px;
+  }
+}
+
+/* Touch device optimizations */
+@media (hover: none) and (pointer: coarse) {
+  /* Larger touch targets */
+  button,
+  [role="button"] {
+    min-height: 44px;
+    min-width: 44px;
+  }
+
+  /* Remove hover effects that don't work well on touch */
+  button:hover {
+    background: inherit;
+  }
+
+  /* Better scrolling on touch */
+  .scrollable {
+    -webkit-overflow-scrolling: touch;
+    scroll-behavior: smooth;
+  }
+}
+
+/* Landscape mode on mobile */
+@media screen and (max-width: 768px) and (orientation: landscape) {
+  :root {
+    --header-height: 40px;
+    --footer-height: 18px;
+  }
+}
+
+/* Safe area insets for notched devices */
+@supports (padding: max(0px)) {
+  .safe-area-top {
+    padding-top: max(var(--spacing-sm), env(safe-area-inset-top));
+  }
+
+  .safe-area-bottom {
+    padding-bottom: max(var(--spacing-sm), env(safe-area-inset-bottom));
+  }
+
+  .safe-area-left {
+    padding-left: max(var(--spacing-sm), env(safe-area-inset-left));
+  }
+
+  .safe-area-right {
+    padding-right: max(var(--spacing-sm), env(safe-area-inset-right));
+  }
+}
+
+/* Print styles */
+@media print {
+  :root {
+    --bg-primary: #ffffff;
+    --text-primary: #000000;
+  }
+}

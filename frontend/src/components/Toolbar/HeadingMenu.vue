@@ -116,4 +116,32 @@ function selectHeading(level: number) {
 .heading-5 { font-size: 0.9em; font-weight: 600; }
 .heading-6 { font-size: 0.85em; font-weight: 600; }
 .heading-0 { font-size: 1em; font-weight: 400; }
+
+/* Responsive Styles */
+@media screen and (max-width: 768px) {
+  .toolbar-btn {
+    min-width: 36px;
+    height: 36px;
+    padding: 0 10px;
+    font-size: 14px;
+  }
+
+  .dropdown-menu {
+    min-width: 140px;
+    max-height: 70vh;
+    overflow-y: auto;
+  }
+
+  .dropdown-item {
+    padding: 12px 16px;
+  }
+}
+
+@media screen and (max-width: 480px) {
+  .toolbar-btn {
+    min-width: 32px;
+    height: 32px;
+    font-size: 13px;
+  }
+}
 </style>

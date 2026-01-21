@@ -458,4 +458,61 @@ defineExpose({
 @keyframes spin {
   to { transform: rotate(360deg); }
 }
+
+/* Responsive Styles */
+@media screen and (max-width: 768px) {
+  .source-editor {
+    font-size: 14px;
+  }
+
+  .line-numbers {
+    width: 40px;
+    padding: 10px 0;
+  }
+
+  .line-number {
+    padding: 0 8px 0 6px;
+    height: 19.6px;
+  }
+
+  .editor-textarea {
+    padding: 10px 12px;
+    -webkit-overflow-scrolling: touch;
+  }
+
+  .cursor-line {
+    height: 19.6px;
+  }
+
+  .upload-indicator {
+    padding: 10px 16px;
+    font-size: 13px;
+  }
+}
+
+@media screen and (max-width: 480px) {
+  .source-editor {
+    font-size: 13px;
+  }
+
+  .line-numbers {
+    width: 36px;
+  }
+
+  .line-number {
+    padding: 0 6px 0 4px;
+    font-size: 11px;
+  }
+
+  .editor-textarea {
+    padding: 8px 10px;
+  }
+}
+
+/* Hide line numbers on very small screens to save space */
+@media screen and (max-width: 380px) {
+  .line-numbers {
+    display: none;
+  }
+}
 </style>

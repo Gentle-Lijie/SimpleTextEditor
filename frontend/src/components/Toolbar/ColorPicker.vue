@@ -275,4 +275,55 @@ function closeCustomPicker() {
 .apply-btn:hover {
   opacity: 0.9;
 }
+
+/* Responsive Styles */
+@media screen and (max-width: 768px) {
+  .color-picker-inline {
+    gap: 4px;
+  }
+
+  .color-section {
+    gap: 4px;
+  }
+
+  .color-label {
+    font-size: 11px;
+  }
+
+  .color-swatches {
+    gap: 2px;
+  }
+
+  .color-swatch {
+    width: 24px;
+    height: 24px;
+  }
+
+  .section-divider {
+    height: 16px;
+    margin: 0 2px;
+  }
+
+  .custom-picker-popover {
+    width: 90%;
+    max-width: 280px;
+  }
+
+  .cancel-btn,
+  .apply-btn {
+    padding: 10px 16px;
+    min-height: 44px;
+  }
+}
+
+@media screen and (max-width: 480px) {
+  .color-label {
+    display: none;
+  }
+
+  .color-swatch {
+    width: 22px;
+    height: 22px;
+  }
+}
 </style>

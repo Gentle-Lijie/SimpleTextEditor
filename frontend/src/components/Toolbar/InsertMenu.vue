@@ -129,4 +129,35 @@ function selectInsert(id: string) {
   font-size: 11px;
   color: var(--text-tertiary);
 }
+
+/* Responsive Styles */
+@media screen and (max-width: 768px) {
+  .toolbar-btn {
+    min-width: 36px;
+    height: 36px;
+    padding: 0 10px;
+  }
+
+  .dropdown-menu {
+    min-width: 200px;
+    max-height: 70vh;
+    overflow-y: auto;
+  }
+
+  .dropdown-item {
+    padding: 12px 16px;
+  }
+
+  .item-shortcut {
+    display: none;
+  }
+}
+
+@media screen and (max-width: 480px) {
+  .toolbar-btn {
+    min-width: 32px;
+    height: 32px;
+    font-size: 14px;
+  }
+}
 </style>

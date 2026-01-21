@@ -31,6 +31,10 @@ defineProps({
     type: Boolean,
     default: false,
   },
+  isMobile: {
+    type: Boolean,
+    default: false,
+  },
 });
 
 const emit = defineEmits<{
@@ -55,17 +59,14 @@ const emit = defineEmits<{
           />
         </svg>
       </button>
-      <div class="logo">SimpleTextEditor</div>
+      <div class="logo" :class="{ 'logo-short': isMobile }">
+        {{ isMobile ? 'STE' : 'SimpleTextEditor' }}
+      </div>
     </div>
     <div class="header-center">
       <div class="mode-switcher">
         <button
-          v-for="mode in [
-            'source',
-            'preview',
-            'split',
-            'wysiwyg',
-          ] as EditorMode[]"
+          v-for="mode in (isMobile ? ['source', 'wysiwyg'] : ['source', 'preview', 'split', 'wysiwyg']) as EditorMode[]"
           :key="mode"
           class="mode-btn"
           :class="{ active: editorMode === mode }"
@@ -85,6 +86,7 @@ const emit = defineEmits<{
         </svg>
       </button>
       <span
+        v-if="!isMobile"
         class="save-status"
         :class="{
           saving: isSaving,
@@ -102,7 +104,7 @@ const emit = defineEmits<{
                 : "已保存"
         }}
       </span>
-      <div class="collab-indicator" :class="{ connected: collabConnected }">
+      <div v-if="!isMobile" class="collab-indicator" :class="{ connected: collabConnected }">
         <span class="collab-dot"></span>
         <span>{{ collabUserCount }} 人在线</span>
       </div>
@@ -237,5 +239,50 @@ const emit = defineEmits<{
 
 .collab-indicator.connected .collab-dot {
   background: var(--accent-secondary);
+}
+
+/* Responsive Styles */
+@media screen and (max-width: 768px) {
+  .app-header {
+    height: 44px;
+    padding: 0 12px;
+  }
+
+  .header-left,
+  .header-right {
+    gap: 8px;
+  }
+
+  .logo {
+    font-size: 14px;
+  }
+
+  .logo-short {
+    font-weight: 700;
+  }
+
+  .mode-switcher {
+    padding: 2px;
+  }
+
+  .mode-btn {
+    padding: 4px 10px;
+    font-size: 12px;
+  }
+
+  .save-btn {
+    padding: 8px;
+  }
+}
+
+@media screen and (max-width: 480px) {
+  .app-header {
+    padding: 0 8px;
+  }
+
+  .mode-btn {
+    padding: 4px 8px;
+    font-size: 11px;
+  }
 }
 </style>
