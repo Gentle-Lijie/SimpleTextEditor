@@ -42,13 +42,13 @@ services:
           cpus: '1.0'
           memory: 1024m
     ports:
-      - "3001:3001"
+      - "${PORT:-3001}:${PORT:-3001}"
     volumes:
       - ./backend/src:/app/src
       - ./backend/package.json:/app/package.json
     environment:
       - NODE_ENV=development
-      - PORT=3001
+      - PORT=${PORT:-3001}
       - DB_HOST=${DB_HOST:-host.docker.internal}
       - DB_PORT=${DB_PORT:-3306}
       - DB_USER=${DB_USER:-root}
