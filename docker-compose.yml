@@ -9,8 +9,6 @@ services:
       args:
         - VITE_API_URL=https://editor.lijie.space
         - VITE_WS_URL=wss://editor.lijie.space
-        - VITE_APP_TITLE=${VITE_APP_TITLE:-SimpleTextEditor}
-        - VITE_APP_SHORT=${VITE_APP_SHORT:-STE}
     cpus: 1.0
     mem_limit: 1024m
     deploy:
@@ -25,6 +23,8 @@ services:
     restart: unless-stopped
 
   backend:
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
     image: ${DOCKER_USERNAME:-gentlelijie}/simpletexteditor-backend:latest
     build:
       context: ./backend

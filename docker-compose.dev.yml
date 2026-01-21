@@ -29,6 +29,8 @@ services:
       - backend
 
   backend:
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
     build:
       context: ./backend
       dockerfile: Dockerfile.dev
