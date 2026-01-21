@@ -73,6 +73,20 @@ watch(isAuthenticated, (authed: boolean) => {
   }
 })
 
+// Update page title based on current document
+const appTitle = (import.meta.env.VITE_APP_TITLE as string) || 'SimpleTextEditor'
+watch(
+  () => documentStore.currentDocument,
+  (doc) => {
+    if (doc?.title) {
+      document.title = `${doc.title} - ${appTitle}`
+    } else {
+      document.title = appTitle
+    }
+  },
+  { immediate: true }
+)
+
 function handleAuthenticated() {
   isAuthenticated.value = true
 }
