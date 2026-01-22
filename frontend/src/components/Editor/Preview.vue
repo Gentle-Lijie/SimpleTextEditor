@@ -134,7 +134,7 @@ function getLockedLineMarkerStyle(lock: { line: number; user: CollaborationUser 
 
 <template>
   <div class="preview" ref="previewRef" @scroll="handleScroll">
-    <div class="preview-content markdown-body" ref="previewContentRef" v-html="renderedContent"></div>
+    <div id="write" class="preview-content markdown-body" ref="previewContentRef" v-html="renderedContent"></div>
     <div class="collaborator-layer">
       <div
         v-for="user in collaboratorCursors"

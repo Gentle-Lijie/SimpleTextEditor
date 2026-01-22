@@ -2,6 +2,7 @@
 import { ref, onMounted, onUnmounted, watch, computed, provide } from 'vue'
 import { useEditorStore } from '@/stores/editor'
 import { useDocumentStore } from '@/stores/document'
+import { useMarkdownTheme } from '@/composables/useMarkdownTheme'
 import Editor from '@/components/Editor/Editor.vue'
 import Toolbar from '@/components/Toolbar/Toolbar.vue'
 import WindowTakeoverOverlay from '@/components/Collaboration/WindowTakeoverOverlay.vue'
@@ -23,6 +24,9 @@ import { useWindowManager } from '@/composables/useWindowManager'
 const editorStore = useEditorStore()
 const documentStore = useDocumentStore()
 const editorRef = ref<InstanceType<typeof Editor> | null>(null)
+
+// Initialize Markdown theme (global, not tied to Preview component)
+useMarkdownTheme()
 
 const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:3001'
 const AUTO_SAVE_DELAY = parseInt(import.meta.env.VITE_AUTO_SAVE_DELAY || '3000')

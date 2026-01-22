@@ -5,6 +5,7 @@ import HeadingMenu from './HeadingMenu.vue'
 import ListMenu from './ListMenu.vue'
 import InsertMenu from './InsertMenu.vue'
 import ColorPicker from './ColorPicker.vue'
+import ThemeMenu from './ThemeMenu.vue'
 
 // Provide a way for child components to execute editor commands
 const emit = defineEmits<{
@@ -90,6 +91,12 @@ onUnmounted(() => {
 
       <div class="toolbar-group">
         <ColorPicker @command="executeCommand" />
+      </div>
+
+      <div class="toolbar-divider"></div>
+
+      <div class="toolbar-group">
+        <ThemeMenu />
       </div>
     </div>
   </div>

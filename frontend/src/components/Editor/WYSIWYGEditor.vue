@@ -905,6 +905,7 @@ onUnmounted(() => {
 <template>
   <div class="wysiwyg-editor-container">
     <div
+      id="write"
       ref="editorElement"
       class="wysiwyg-editor markdown-body"
       contenteditable="true"
