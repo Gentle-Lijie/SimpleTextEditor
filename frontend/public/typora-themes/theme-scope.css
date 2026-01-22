@@ -1,0 +1,85 @@
+/**
+ * Typora Theme Scope Limiter
+ *
+ * This file ensures that Typora themes only affect the #write container
+ * and don't leak styles to the rest of the application.
+ *
+ * Strategy: Override global selectors with higher specificity
+ */
+
+/* Override body styles that themes might set */
+body {
+  /* Preserve application styles with !important */
+  font-family: var(--font-sans) !important;
+  font-size: 14px !important;
+  background: var(--bg-primary) !important;
+  color: var(--text-primary) !important;
+  line-height: 1.5 !important;
+}
+
+/* Override html styles */
+html {
+  font-size: 16px !important;
+  background: var(--bg-primary) !important;
+}
+
+/* Ensure #write can still be styled by themes */
+#write {
+  /* Allow theme to override these */
+  font-family: inherit;
+  font-size: inherit;
+  background: inherit;
+  color: inherit;
+  line-height: inherit;
+
+  /* Create isolation */
+  position: relative;
+  isolation: isolate;
+}
+
+/* Prevent theme styles from affecting UI components */
+.toolbar-wrapper,
+.toolbar-wrapper *,
+.app-header,
+.app-header *,
+.app-sidebar,
+.app-sidebar *,
+.status-bar,
+.status-bar *,
+.theme-menu-inline,
+.theme-menu-inline *,
+.debug-panel,
+.debug-panel * {
+  /* Force application styles */
+  font-family: var(--font-sans) !important;
+  font-size: inherit !important;
+}
+
+/* Ensure all buttons outside #write use app styles */
+button:not(#write button):not(#write * button),
+input:not(#write input):not(#write * input),
+select:not(#write select):not(#write * select),
+textarea:not(#write textarea):not(#write * textarea) {
+  font-family: var(--font-sans) !important;
+  background: var(--bg-secondary) !important;
+  color: var(--text-primary) !important;
+  border: 1px solid var(--border-color) !important;
+}
+
+/* Preserve dropdown and modal styles */
+.theme-dropdown-menu,
+.theme-dropdown-menu *,
+[class*="dropdown"],
+[class*="dropdown"] *,
+[class*="modal"],
+[class*="modal"] *,
+[class*="popover"],
+[class*="popover"] * {
+  font-family: var(--font-sans) !important;
+}
+
+/* Ensure teleported elements (dropdowns, modals) are not affected */
+body > div:not(#app):not(#write) {
+  font-family: var(--font-sans) !important;
+}
+
