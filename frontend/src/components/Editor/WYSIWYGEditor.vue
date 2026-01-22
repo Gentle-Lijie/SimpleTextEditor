@@ -7,12 +7,17 @@ import TurndownService from 'turndown'
 // @ts-expect-error - no type definitions
 import { gfm } from 'turndown-plugin-gfm'
 import { uploadImageFromClipboard, hasImageInClipboard } from '@/utils/imageUpload'
+import type { CollaborationUser } from '@/types'
+import { getCaretRectFromIndex } from '@/utils/collaborationCursor'
 
 const editorStore = useEditorStore()
 const editorElement = ref<HTMLDivElement | null>(null)
 const isComposing = ref(false)
 const lastSavedSelection = ref<{ start: number; end: number } | null>(null)
 const isUploading = ref(false)
+const lockWarning = ref(false)
+const scrollTop = ref(0)
+const scrollLeft = ref(0)
 
 // Selection toolbar removed - floating toolbar disabled
 
@@ -24,6 +29,16 @@ const resizeStartData = ref<{ startX: number; startY: number; startWidth: number
 
 // Get collaboration from parent
 const collaboration = inject<any>('collaboration')
+
+const collaboratorCursors = computed(() => {
+  if (!collaboration) return []
+  return collaboration.users.value.filter((u: CollaborationUser) => u.cursor)
+})
+
+const lockedLines = computed(() => {
+  if (!collaboration || !collaboration.getLockedLines) return []
+  return collaboration.getLockedLines()
+})
 
 // Configure Turndown for HTML to Markdown conversion
 const turndownService = new TurndownService({
@@ -65,6 +80,22 @@ turndownService.addRule('subscript', {
 turndownService.addRule('superscript', {
   filter: 'sup',
   replacement: (content: string) => `^${content}^`
+})
+
+turndownService.addRule('lineBreak', {
+  filter: 'br',
+  replacement: () => '<br>\n'
+})
+
+turndownService.addRule('emptyBlock', {
+  filter: (node: HTMLElement) => {
+    if (node.nodeName !== 'DIV' && node.nodeName !== 'P') return false
+    const text = (node.textContent || '').replace(/\u00a0/g, ' ')
+    const hasMedia = !!node.querySelector('img,table,pre,blockquote,ul,ol,li,code')
+    const hasOnlyBreak = node.children.length === 1 && node.children[0].tagName === 'BR'
+    return !hasMedia && (!text.trim() || hasOnlyBreak)
+  },
+  replacement: () => '<br>\n'
 })
 
 // Convert colored text to HTML with data attributes for markdown conversion
@@ -475,6 +506,13 @@ function handleInput() {
 
   editorStore.setContent(markdown)
 
+  if (collaboration) {
+    const info = getSelectionInfo()
+    if (info) {
+      collaboration.touchEditing(info.line, info.start)
+    }
+  }
+
   nextTick(() => {
     isUpdatingFromSource = false
     isLocalInput = false
@@ -548,6 +586,17 @@ function toggleCenterAlign() {
 function handleKeydown(event: KeyboardEvent) {
   const ctrl = event.ctrlKey || event.metaKey
 
+  if (collaboration) {
+    const info = getSelectionInfo()
+    if (info && collaboration.isLineLocked(info.line)) {
+      if (event.key.length === 1 || event.key === 'Backspace' || event.key === 'Delete' || event.key === 'Enter' || event.key === 'Tab' || ctrl) {
+        event.preventDefault()
+        showLockWarning()
+        return
+      }
+    }
+  }
+
   if (ctrl && event.key === 'b') {
     event.preventDefault()
     document.execCommand('bold', false)
@@ -613,6 +662,15 @@ function handleKeydown(event: KeyboardEvent) {
 // Handle paste
 async function handlePaste(event: ClipboardEvent) {
   if (!event.clipboardData) return
+
+  if (collaboration) {
+    const info = getSelectionInfo()
+    if (info && collaboration.isLineLocked(info.line)) {
+      event.preventDefault()
+      showLockWarning()
+      return
+    }
+  }
 
   if (hasImageInClipboard(event.clipboardData)) {
     event.preventDefault()
@@ -693,12 +751,44 @@ function handleMouseUp(event: MouseEvent) {
 // Handle selection change for collaboration
 function handleSelectionChange() {
   if (!collaboration) return
+  const info = getSelectionInfo()
+  if (!info) return
 
+  collaboration.updateCursor(info.line, info.column, info.start)
+  if (info.start !== info.end) {
+    collaboration.updateSelection(info.start, info.end)
+  }
+}
+
+function handleBeforeInput(event: InputEvent) {
+  if (!collaboration) return
+  const info = getSelectionInfo()
+  if (!info) return
+  if (collaboration.isLineLocked(info.line)) {
+    event.preventDefault()
+    showLockWarning()
+  }
+}
+
+function handleScroll() {
+  if (!editorElement.value) return
+  scrollTop.value = editorElement.value.scrollTop
+  scrollLeft.value = editorElement.value.scrollLeft
+}
+
+function showLockWarning() {
+  lockWarning.value = true
+  window.setTimeout(() => {
+    lockWarning.value = false
+  }, 1200)
+}
+
+function getSelectionInfo() {
   const selection = window.getSelection()
-  if (!selection || selection.rangeCount === 0 || !editorElement.value) return
+  if (!selection || selection.rangeCount === 0 || !editorElement.value) return null
 
   const range = selection.getRangeAt(0)
-  if (!editorElement.value.contains(range.commonAncestorContainer)) return
+  if (!editorElement.value.contains(range.commonAncestorContainer)) return null
 
   const preCaretRange = range.cloneRange()
   preCaretRange.selectNodeContents(editorElement.value)
@@ -713,9 +803,45 @@ function handleSelectionChange() {
   const line = lines.length
   const column = lines[lines.length - 1].length + 1
 
-  collaboration.updateCursor(line, column, start)
-  if (start !== end) {
-    collaboration.updateSelection(start, end)
+  return { start, end, line, column }
+}
+
+function getCursorStyle(user: CollaborationUser) {
+  if (!user.cursor || !editorElement.value) return {}
+  const index = user.cursor.index ?? 0
+  const rect = getCaretRectFromIndex(editorElement.value, index)
+  if (!rect) return {}
+
+  const containerRect = editorElement.value.getBoundingClientRect()
+  const _ = scrollTop.value + scrollLeft.value
+  void _
+
+  const top = rect.top - containerRect.top
+  const left = rect.left - containerRect.left
+
+  return {
+    top: `${top}px`,
+    left: `${left}px`,
+    backgroundColor: user.color,
+    '--user-color': user.color
+  }
+}
+
+function getLockedLineMarkerStyle(lock: { line: number; user: CollaborationUser }) {
+  if (!editorElement.value) return {}
+  const index = lock.user.activity?.index ?? lock.user.cursor?.index ?? 0
+  const rect = getCaretRectFromIndex(editorElement.value, index)
+  if (!rect) return {}
+
+  const containerRect = editorElement.value.getBoundingClientRect()
+  const top = rect.top - containerRect.top
+  const left = rect.right - containerRect.left + 6
+
+  return {
+    top: `${top}px`,
+    left: `${left}px`,
+    borderColor: lock.user.color,
+    color: lock.user.color
   }
 }
 
@@ -783,6 +909,7 @@ onUnmounted(() => {
       class="wysiwyg-editor markdown-body"
       contenteditable="true"
       spellcheck="true"
+      @beforeinput="handleBeforeInput"
       @input="handleInput"
       @compositionstart="handleCompositionStart"
       @compositionend="handleCompositionEnd"
@@ -790,6 +917,7 @@ onUnmounted(() => {
       @paste="handlePaste"
       @click="handleClick"
       @mouseup="handleMouseUp"
+      @scroll="handleScroll"
     />
 
     <!-- Floating selection toolbar removed -->
@@ -820,10 +948,36 @@ onUnmounted(() => {
       </div>
     </div>
 
+    <div class="collaborator-layer">
+      <div
+        v-for="user in collaboratorCursors"
+        :key="user.id"
+        class="collaborator-cursor"
+        :style="getCursorStyle(user)"
+      >
+        <div class="cursor-line" :style="{ backgroundColor: user.color }"></div>
+        <div class="cursor-label" :style="{ backgroundColor: user.color }">
+          {{ user.name }}
+        </div>
+      </div>
+      <div
+        v-for="lock in lockedLines"
+        :key="`lock-${lock.line}-${lock.ownerId}`"
+        class="locked-line-marker"
+        :style="getLockedLineMarkerStyle(lock)"
+      >
+        {{ lock.user.name }} 正在编辑
+      </div>
+    </div>
+
     <!-- Upload indicator -->
     <div v-if="isUploading" class="upload-indicator">
       <span class="upload-spinner"></span>
       <span>上传图片中...</span>
+    </div>
+
+    <div v-if="lockWarning" class="lock-warning">
+      该行正在被其他协作者编辑
     </div>
   </div>
 </template>
@@ -1061,6 +1215,56 @@ onUnmounted(() => {
   pointer-events: none;
 }
 
+.collaborator-layer {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  pointer-events: none;
+  z-index: 12;
+}
+
+.collaborator-cursor {
+  position: absolute;
+  pointer-events: none;
+  z-index: 12;
+}
+
+.locked-line-marker {
+  position: absolute;
+  padding: 2px 6px;
+  font-size: 11px;
+  background: rgba(255, 255, 255, 0.95);
+  border: 1px solid;
+  border-radius: 10px;
+  white-space: nowrap;
+  box-shadow: var(--shadow-sm);
+}
+
+.cursor-line {
+  width: 2px;
+  height: 22px;
+  animation: cursor-blink 1s ease-in-out infinite;
+}
+
+.cursor-label {
+  position: absolute;
+  top: -18px;
+  left: 0;
+  padding: 2px 6px;
+  font-size: 11px;
+  color: white;
+  border-radius: 3px;
+  white-space: nowrap;
+  font-family: var(--font-sans);
+}
+
+@keyframes cursor-blink {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.5; }
+}
+
 /* Upload indicator */
 .upload-indicator {
   position: absolute;
@@ -1076,6 +1280,20 @@ onUnmounted(() => {
   border-radius: var(--radius-md);
   box-shadow: var(--shadow-lg);
   z-index: 20;
+}
+
+.lock-warning {
+  position: absolute;
+  bottom: 16px;
+  right: 16px;
+  padding: 6px 10px;
+  font-size: 12px;
+  background: var(--bg-secondary);
+  color: var(--text-secondary);
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-sm);
+  box-shadow: var(--shadow-md);
+  z-index: 30;
 }
 
 .upload-spinner {

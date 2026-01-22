@@ -43,6 +43,7 @@ export interface CollaborationUser {
   color: string
   cursor?: CursorPosition & { index?: number }
   selection?: { start: number; end: number }
+  activity?: { line: number; index?: number; editing: boolean; ts: number }
 }
 
 export interface CollaborationState {

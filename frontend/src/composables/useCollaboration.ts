@@ -5,6 +5,8 @@ import type { CollaborationUser } from '@/types'
 import { useEditorStore } from '@/stores/editor'
 
 const WS_URL = import.meta.env.VITE_WS_URL || 'ws://localhost:3001'
+const CURSOR_SYNC_INTERVAL = 400
+const ACTIVITY_TTL = 1500
 
 // LocalStorage keys for user info
 const USER_NAME_KEY = 'simpletexteditor-username'
@@ -72,6 +74,37 @@ export function useCollaboration(documentIdRef: Ref<string> | string) {
   let isUpdatingFromYjs = false
   let isUpdatingFromStore = false
   let stopStoreWatch: (() => void) | null = null
+  let activityTimeout: number | null = null
+  let lastActivity = { line: 1, index: 0 }
+
+  function createThrottled<T extends (...args: any[]) => void>(fn: T, interval: number) {
+    let last = 0
+    let timer: number | null = null
+    let pendingArgs: Parameters<T> | null = null
+
+    return (...args: Parameters<T>) => {
+      const now = Date.now()
+      const elapsed = now - last
+
+      if (elapsed >= interval) {
+        last = now
+        fn(...args)
+        return
+      }
+
+      pendingArgs = args
+      if (timer === null) {
+        timer = window.setTimeout(() => {
+          timer = null
+          last = Date.now()
+          if (pendingArgs) {
+            fn(...pendingArgs)
+            pendingArgs = null
+          }
+        }, interval - elapsed)
+      }
+    }
+  }
 
   // Sync Y.Text changes to store
   function onYTextChange() {
@@ -195,7 +228,8 @@ export function useCollaboration(documentIdRef: Ref<string> | string) {
             name: state.user.name,
             color: state.user.color,
             cursor: state.cursor,
-            selection: state.selection
+            selection: state.selection,
+            activity: state.activity
           })
         }
       })
@@ -212,6 +246,10 @@ export function useCollaboration(documentIdRef: Ref<string> | string) {
       provider.destroy()
       provider = null
     }
+    if (activityTimeout) {
+      window.clearTimeout(activityTimeout)
+      activityTimeout = null
+    }
     if (stopStoreWatch) {
       stopStoreWatch()
       stopStoreWatch = null
@@ -219,6 +257,39 @@ export function useCollaboration(documentIdRef: Ref<string> | string) {
     connected.value = false
     users.value = []
   }
+
+  function setEditingState(editing: boolean) {
+    if (!provider) return
+    provider.awareness.setLocalStateField('activity', {
+      line: lastActivity.line,
+      index: lastActivity.index,
+      editing,
+      ts: Date.now()
+    })
+  }
+
+  const throttledCursorUpdate = createThrottled((line: number, column: number, index?: number) => {
+    if (provider) {
+      provider.awareness.setLocalStateField('cursor', { line, column, index })
+    }
+  }, CURSOR_SYNC_INTERVAL)
+
+  const throttledSelectionUpdate = createThrottled((start: number, end: number) => {
+    if (provider) {
+      provider.awareness.setLocalStateField('selection', { start, end })
+    }
+  }, CURSOR_SYNC_INTERVAL)
+
+  const throttledActivityUpdate = createThrottled((line: number, index: number) => {
+    if (provider) {
+      provider.awareness.setLocalStateField('activity', {
+        line,
+        index,
+        editing: true,
+        ts: Date.now()
+      })
+    }
+  }, CURSOR_SYNC_INTERVAL)
 
   // Disconnect from collaboration server
   function disconnect() {
@@ -233,16 +304,85 @@ export function useCollaboration(documentIdRef: Ref<string> | string) {
 
   // Update cursor position in awareness
   function updateCursor(line: number, column: number, index?: number) {
-    if (provider) {
-      provider.awareness.setLocalStateField('cursor', { line, column, index })
-    }
+    throttledCursorUpdate(line, column, index)
   }
 
   // Update selection in awareness
   function updateSelection(start: number, end: number) {
-    if (provider) {
-      provider.awareness.setLocalStateField('selection', { start, end })
+    throttledSelectionUpdate(start, end)
+  }
+
+  function touchEditing(line: number, index: number) {
+    lastActivity = { line, index }
+    throttledActivityUpdate(line, index)
+
+    if (activityTimeout) {
+      window.clearTimeout(activityTimeout)
     }
+    activityTimeout = window.setTimeout(() => {
+      setEditingState(false)
+    }, ACTIVITY_TTL)
+  }
+
+  function getLineLockOwner(line: number): string | null {
+    if (!provider) return null
+    const now = Date.now()
+    const states = provider.awareness.getStates()
+    const activeEditors: number[] = []
+
+    states.forEach((state, clientId) => {
+      const activity = state.activity
+      if (!activity || !activity.editing) return
+      if (activity.line !== line) return
+      if (now - activity.ts > ACTIVITY_TTL) return
+      activeEditors.push(clientId)
+    })
+
+    if (activeEditors.length === 0) return null
+    activeEditors.sort((a, b) => a - b)
+    return activeEditors[0].toString()
+  }
+
+  function getLockedLines(): { line: number; user: CollaborationUser; ownerId: string }[] {
+    if (!provider) return []
+    const now = Date.now()
+    const states = provider.awareness.getStates()
+    const lockMap = new Map<number, { clientId: number; user: CollaborationUser; ownerId: string }>()
+
+    states.forEach((state, clientId) => {
+      if (!state.user || clientId === ydoc.clientID) return
+      const activity = state.activity
+      if (!activity || !activity.editing) return
+      if (now - activity.ts > ACTIVITY_TTL) return
+
+      const line = activity.line
+      const ownerId = clientId.toString()
+      const user: CollaborationUser = {
+        id: ownerId,
+        name: state.user.name,
+        color: state.user.color,
+        cursor: state.cursor,
+        selection: state.selection,
+        activity: state.activity
+      }
+
+      const existing = lockMap.get(line)
+      if (!existing || clientId < existing.clientId) {
+        lockMap.set(line, { clientId, user, ownerId })
+      }
+    })
+
+    return Array.from(lockMap.entries()).map(([line, data]) => ({
+      line,
+      user: data.user,
+      ownerId: data.ownerId
+    }))
+  }
+
+  function isLineLocked(line: number): boolean {
+    const owner = getLineLockOwner(line)
+    if (!owner) return false
+    return owner !== ydoc.clientID.toString()
   }
 
   // Get Y.Text for binding to editor
@@ -323,6 +463,9 @@ export function useCollaboration(documentIdRef: Ref<string> | string) {
     getYDoc,
     getProvider,
     setUserName,
-    applyLocalChange
+    applyLocalChange,
+    touchEditing,
+    isLineLocked,
+    getLockedLines
   }
 }

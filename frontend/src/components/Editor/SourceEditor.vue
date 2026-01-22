@@ -13,11 +13,19 @@ const collaboration = inject<any>('collaboration')
 const textareaRef = ref<HTMLTextAreaElement | null>(null)
 const lineNumbers = ref<number[]>([1])
 const editorContainerRef = ref<HTMLDivElement | null>(null)
+const scrollTop = ref(0)
+const scrollLeft = ref(0)
+const lockWarning = ref(false)
 
 // Collaboration users with cursor positions
 const collaboratorCursors = computed(() => {
   if (!collaboration) return []
   return collaboration.users.value.filter((u: CollaborationUser) => u.cursor)
+})
+
+const lockedLines = computed(() => {
+  if (!collaboration || !collaboration.getLockedLines) return []
+  return collaboration.getLockedLines()
 })
 
 // Update line numbers when content changes
@@ -26,11 +34,39 @@ function updateLineNumbers() {
   lineNumbers.value = Array.from({ length: lines }, (_, i) => i + 1)
 }
 
+function showLockWarning() {
+  lockWarning.value = true
+  window.setTimeout(() => {
+    lockWarning.value = false
+  }, 1200)
+}
+
+function getLineAndColumnFromIndex(text: string, index: number) {
+  const before = text.substring(0, index)
+  const lines = before.split('\n')
+  const line = lines.length
+  const column = lines[lines.length - 1].length + 1
+  return { line, column }
+}
+
+function getCurrentLineIndex() {
+  if (!textareaRef.value) return { line: 1, index: 0 }
+  const textarea = textareaRef.value
+  const index = textarea.selectionStart
+  const { line } = getLineAndColumnFromIndex(textarea.value, index)
+  return { line, index }
+}
+
 // Handle input
 function handleInput(event: Event) {
   const target = event.target as HTMLTextAreaElement
   editorStore.setContent(target.value)
   updateLineNumbers()
+
+  if (collaboration) {
+    const { line, index } = getCurrentLineIndex()
+    collaboration.touchEditing(line, index)
+  }
 }
 
 // Handle cursor position change
@@ -54,10 +90,30 @@ function handleCursorChange() {
   }
 }
 
+function handleBeforeInput(event: InputEvent) {
+  if (!collaboration) return
+  const { line } = getCurrentLineIndex()
+  if (collaboration.isLineLocked(line)) {
+    event.preventDefault()
+    showLockWarning()
+  }
+}
+
 // Handle keyboard shortcuts
 function handleKeyDown(event: KeyboardEvent) {
   const textarea = textareaRef.value
   if (!textarea) return
+
+  if (collaboration) {
+    const { line } = getCurrentLineIndex()
+    if (collaboration.isLineLocked(line)) {
+      if (event.key.length === 1 || event.key === 'Backspace' || event.key === 'Delete' || event.key === 'Enter' || event.key === 'Tab') {
+        event.preventDefault()
+        showLockWarning()
+        return
+      }
+    }
+  }
 
   // Tab key - insert spaces instead of tab character
   if (event.key === 'Tab') {
@@ -180,6 +236,8 @@ function wrapSelection(before: string, after: string) {
 // Sync scroll with line numbers
 function handleScroll(event: Event) {
   const target = event.target as HTMLTextAreaElement
+  scrollTop.value = target.scrollTop
+  scrollLeft.value = target.scrollLeft
   const lineNumbersEl = document.querySelector('.line-numbers') as HTMLElement
   if (lineNumbersEl) {
     lineNumbersEl.scrollTop = target.scrollTop
@@ -189,6 +247,15 @@ function handleScroll(event: Event) {
 // Handle paste - check for images
 async function handlePaste(event: ClipboardEvent) {
   if (!event.clipboardData || !textareaRef.value) return
+
+  if (collaboration) {
+    const { line } = getCurrentLineIndex()
+    if (collaboration.isLineLocked(line)) {
+      event.preventDefault()
+      showLockWarning()
+      return
+    }
+  }
 
   // Check if clipboard has image
   if (hasImageInClipboard(event.clipboardData)) {
@@ -261,10 +328,28 @@ function getCursorStyle(user: CollaborationUser) {
   const left = 50 + 16 + (column - 1) * charWidth // 50px line numbers + 16px padding
 
   return {
-    top: `${top}px`,
-    left: `${left}px`,
+    top: `${top - scrollTop.value}px`,
+    left: `${left - scrollLeft.value}px`,
     backgroundColor: user.color,
     '--user-color': user.color
+  }
+}
+
+function getLockedLineStyle(line: number) {
+  const lineHeight = 22.4
+  const top = (line - 1) * lineHeight + 12
+  return {
+    top: `${top - scrollTop.value}px`,
+    height: `${lineHeight}px`
+  }
+}
+
+function getLockedLineMarkerStyle(line: number) {
+  const lineHeight = 22.4
+  const top = (line - 1) * lineHeight + 12
+  return {
+    top: `${top - scrollTop.value}px`,
+    right: '12px'
   }
 }
 
@@ -300,10 +385,27 @@ defineExpose({
       </div>
     </div>
     <div class="editor-wrapper">
+      <div class="locked-lines-layer">
+        <div
+          v-for="lock in lockedLines"
+          :key="`${lock.line}-${lock.ownerId}`"
+          class="locked-line"
+          :style="getLockedLineStyle(lock.line)"
+        ></div>
+        <div
+          v-for="lock in lockedLines"
+          :key="`marker-${lock.line}-${lock.ownerId}`"
+          class="locked-line-marker"
+          :style="{ ...getLockedLineMarkerStyle(lock.line), borderColor: lock.user.color, color: lock.user.color }"
+        >
+          {{ lock.user.name }} 正在编辑
+        </div>
+      </div>
       <textarea
         ref="textareaRef"
         class="editor-textarea"
         :value="editorStore.content"
+        @beforeinput="handleBeforeInput"
         @input="handleInput"
         @keydown="handleKeyDown"
         @click="handleCursorChange"
@@ -318,6 +420,10 @@ defineExpose({
       <div v-if="isUploading" class="upload-indicator">
         <span class="upload-spinner"></span>
         <span>上传图片中...</span>
+      </div>
+
+      <div v-if="lockWarning" class="lock-warning">
+        该行正在被其他协作者编辑
       </div>
 
       <!-- Collaborator cursors -->
@@ -372,6 +478,35 @@ defineExpose({
   flex: 1;
   position: relative;
   overflow: hidden;
+}
+
+.locked-lines-layer {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  pointer-events: none;
+  z-index: 5;
+}
+
+.locked-line {
+  position: absolute;
+  left: 0;
+  right: 0;
+  background: rgba(255, 167, 38, 0.15);
+  border-left: 2px solid rgba(255, 167, 38, 0.6);
+}
+
+.locked-line-marker {
+  position: absolute;
+  padding: 2px 6px;
+  font-size: 11px;
+  background: rgba(255, 255, 255, 0.9);
+  border: 1px solid;
+  border-radius: 10px;
+  white-space: nowrap;
+  box-shadow: var(--shadow-sm);
 }
 
 .editor-textarea {
@@ -444,6 +579,20 @@ defineExpose({
   border-radius: var(--radius-md);
   box-shadow: var(--shadow-lg);
   z-index: 20;
+}
+
+.lock-warning {
+  position: absolute;
+  bottom: 16px;
+  right: 16px;
+  padding: 6px 10px;
+  font-size: 12px;
+  background: var(--bg-secondary);
+  color: var(--text-secondary);
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-sm);
+  box-shadow: var(--shadow-md);
+  z-index: 30;
 }
 
 .upload-spinner {

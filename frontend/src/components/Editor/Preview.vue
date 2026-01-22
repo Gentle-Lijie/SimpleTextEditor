@@ -1,11 +1,29 @@
 <script setup lang="ts">
-import { computed, watch, nextTick, onMounted } from 'vue'
+import { computed, watch, nextTick, onMounted, ref, inject } from 'vue'
 import { useEditorStore } from '@/stores/editor'
 import { renderMarkdown } from '@/utils/markdown-it-config'
 import DOMPurify from 'dompurify'
 import mermaid from 'mermaid'
+import type { CollaborationUser } from '@/types'
+import { getCaretRectFromIndex } from '@/utils/collaborationCursor'
 
 const editorStore = useEditorStore()
+const previewRef = ref<HTMLDivElement | null>(null)
+const previewContentRef = ref<HTMLDivElement | null>(null)
+const scrollTop = ref(0)
+const scrollLeft = ref(0)
+
+const collaboration = inject<any>('collaboration')
+
+const collaboratorCursors = computed(() => {
+  if (!collaboration) return []
+  return collaboration.users.value.filter((u: CollaborationUser) => u.cursor)
+})
+
+const lockedLines = computed(() => {
+  if (!collaboration || !collaboration.getLockedLines) return []
+  return collaboration.getLockedLines()
+})
 
 // Initialize Mermaid
 onMounted(() => {
@@ -67,11 +85,77 @@ watch(renderedContent, async () => {
     console.warn('Mermaid rendering error:', e)
   }
 }, { flush: 'post' })
+
+function handleScroll() {
+  if (!previewRef.value) return
+  scrollTop.value = previewRef.value.scrollTop
+  scrollLeft.value = previewRef.value.scrollLeft
+}
+
+function getCursorStyle(user: CollaborationUser) {
+  if (!user.cursor || !previewContentRef.value || !previewRef.value) return {}
+  const index = user.cursor.index ?? 0
+  const rect = getCaretRectFromIndex(previewContentRef.value, index)
+  if (!rect) return {}
+
+  const containerRect = previewRef.value.getBoundingClientRect()
+  const _ = scrollTop.value + scrollLeft.value
+  void _
+
+  const top = rect.top - containerRect.top
+  const left = rect.left - containerRect.left
+
+  return {
+    top: `${top}px`,
+    left: `${left}px`,
+    backgroundColor: user.color,
+    '--user-color': user.color
+  }
+}
+
+function getLockedLineMarkerStyle(lock: { line: number; user: CollaborationUser }) {
+  if (!previewContentRef.value || !previewRef.value) return {}
+  const index = lock.user.activity?.index ?? lock.user.cursor?.index ?? 0
+  const rect = getCaretRectFromIndex(previewContentRef.value, index)
+  if (!rect) return {}
+
+  const containerRect = previewRef.value.getBoundingClientRect()
+  const top = rect.top - containerRect.top
+  const left = rect.right - containerRect.left + 6
+
+  return {
+    top: `${top}px`,
+    left: `${left}px`,
+    borderColor: lock.user.color,
+    color: lock.user.color
+  }
+}
 </script>
 
 <template>
-  <div class="preview">
-    <div class="preview-content markdown-body" v-html="renderedContent"></div>
+  <div class="preview" ref="previewRef" @scroll="handleScroll">
+    <div class="preview-content markdown-body" ref="previewContentRef" v-html="renderedContent"></div>
+    <div class="collaborator-layer">
+      <div
+        v-for="user in collaboratorCursors"
+        :key="user.id"
+        class="collaborator-cursor"
+        :style="getCursorStyle(user)"
+      >
+        <div class="cursor-line" :style="{ backgroundColor: user.color }"></div>
+        <div class="cursor-label" :style="{ backgroundColor: user.color }">
+          {{ user.name }}
+        </div>
+      </div>
+      <div
+        v-for="lock in lockedLines"
+        :key="`lock-${lock.line}-${lock.ownerId}`"
+        class="locked-line-marker"
+        :style="getLockedLineMarkerStyle(lock)"
+      >
+        {{ lock.user.name }} 正在编辑
+      </div>
+    </div>
   </div>
 </template>
 
@@ -80,12 +164,63 @@ watch(renderedContent, async () => {
   height: 100%;
   overflow-y: auto;
   background: var(--editor-bg);
+  position: relative;
 }
 
 .preview-content {
   padding: 24px 32px;
   max-width: 900px;
   margin: 0 auto;
+}
+
+.collaborator-layer {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  pointer-events: none;
+  z-index: 5;
+}
+
+.collaborator-cursor {
+  position: absolute;
+  pointer-events: none;
+  z-index: 5;
+}
+
+.locked-line-marker {
+  position: absolute;
+  padding: 2px 6px;
+  font-size: 11px;
+  background: rgba(255, 255, 255, 0.95);
+  border: 1px solid;
+  border-radius: 10px;
+  white-space: nowrap;
+  box-shadow: var(--shadow-sm);
+}
+
+.cursor-line {
+  width: 2px;
+  height: 22px;
+  animation: cursor-blink 1s ease-in-out infinite;
+}
+
+.cursor-label {
+  position: absolute;
+  top: -18px;
+  left: 0;
+  padding: 2px 6px;
+  font-size: 11px;
+  color: white;
+  border-radius: 3px;
+  white-space: nowrap;
+  font-family: var(--font-sans);
+}
+
+@keyframes cursor-blink {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.5; }
 }
 </style>
 
