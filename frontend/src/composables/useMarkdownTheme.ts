@@ -85,7 +85,7 @@ export function useMarkdownTheme() {
    */
   const stopWatcher = watch(
     () => themeStore.currentThemeId,
-    (newThemeId) => {
+    () => {
       const newTheme = themeStore.currentTheme
       if (newTheme) {
         loadTheme(newTheme)

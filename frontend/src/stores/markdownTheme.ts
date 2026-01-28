@@ -6,8 +6,7 @@ import {
   getThemeById,
   getThemesByCategory,
   getAllCategories,
-  type MarkdownTheme,
-  type ThemeCategory
+  type MarkdownTheme
 } from '@/config/markdownThemes'
 
 // LocalStorage key for persisting theme selection
